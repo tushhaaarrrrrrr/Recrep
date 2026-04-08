@@ -53,7 +53,6 @@ class ApprovalView(discord.ui.View):
         return dict(row) if row else {}
 
     async def _delete_form_images(self):
-        """Delete all images associated with this form from S3."""
         if not self.form_data:
             self.form_data = await self._fetch_form_details()
         urls_str = self.form_data.get('screenshot_urls', '')
@@ -172,9 +171,14 @@ class ApprovalView(discord.ui.View):
             )
             return
 
+        # Disable buttons
         for child in self.children:
             child.disabled = True
-        await interaction.edit_original_response(view=self)
+        try:
+            await interaction.edit_original_response(view=self)
+        except discord.NotFound:
+            # Original message may have been deleted already
+            pass
 
         current = await self._fetch_form_details()
         current_status = current.get('status') if current else None
@@ -199,7 +203,11 @@ class ApprovalView(discord.ui.View):
                 await DBService.approve_form(self.table, self.form_id, interaction.user.id)
                 await self._send_notification(interaction.guild, interaction.user)
 
-                await interaction.message.delete()
+                # Delete the approval embed message (ignore if already gone)
+                try:
+                    await interaction.message.delete()
+                except (discord.NotFound, AttributeError):
+                    pass
                 await interaction.followup.send(
                     f"✅ **Form #{self.form_id} approved** by {interaction.user.display_name}.",
                     ephemeral=True
@@ -208,7 +216,10 @@ class ApprovalView(discord.ui.View):
                 await DBService.hold_form(self.table, self.form_id)
                 for child in self.children:
                     child.disabled = False
-                await interaction.edit_original_response(view=self)
+                try:
+                    await interaction.edit_original_response(view=self)
+                except discord.NotFound:
+                    pass
                 await interaction.followup.edit_message(
                     message_id=interaction.message.id,
                     content=(
@@ -220,16 +231,23 @@ class ApprovalView(discord.ui.View):
             else:
                 await DBService.deny_form(self.table, self.form_id)
                 await self._delete_form_images()
-                await interaction.message.delete()
+                try:
+                    await interaction.message.delete()
+                except (discord.NotFound, AttributeError):
+                    pass
                 await interaction.followup.send(
                     f"❌ **Form #{self.form_id} denied** by {interaction.user.display_name}.",
                     ephemeral=True
                 )
         except Exception as e:
             logger.error(f"Error handling approval: {e}", exc_info=True)
+            # Re‑enable buttons on error
             for child in self.children:
                 child.disabled = False
-            await interaction.edit_original_response(view=self)
+            try:
+                await interaction.edit_original_response(view=self)
+            except discord.NotFound:
+                pass
             await interaction.followup.send(
                 "⚠️ An error occurred. Please try again later.",
                 ephemeral=True
