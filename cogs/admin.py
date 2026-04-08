@@ -119,6 +119,9 @@ class AdminCog(commands.Cog):
                         ephemeral=True
                     )
             else:
+                # Full role list may take time; defer to avoid timeout
+                await interaction.response.defer(ephemeral=True)
+
                 embed = discord.Embed(
                     title="Internal Staff Roles",
                     color=discord.Color.green(),
@@ -149,7 +152,7 @@ class AdminCog(commands.Cog):
                             value="*None*",
                             inline=False
                         )
-                await interaction.response.send_message(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(
         name="view_config",
@@ -157,6 +160,9 @@ class AdminCog(commands.Cog):
     )
     @app_commands.default_permissions(administrator=True)
     async def view_config(self, interaction: discord.Interaction):
+        # Defer to prevent timeout while fetching config and roles
+        await interaction.response.defer(ephemeral=True)
+
         config = await DBService.get_guild_config(interaction.guild_id)
         embed = discord.Embed(
             title="Guild Configuration",
@@ -213,7 +219,7 @@ class AdminCog(commands.Cog):
                     inline=False
                 )
 
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(
         name="status",
@@ -222,6 +228,9 @@ class AdminCog(commands.Cog):
     @app_commands.default_permissions(administrator=True)
     async def status_command(self, interaction: discord.Interaction):
         """Display bot status, uptime, and database connection health."""
+        # Defer to allow time for DB health check
+        await interaction.response.defer(ephemeral=True)
+
         uptime_seconds = int(time.time() - self.start_time)
         days = uptime_seconds // 86400
         hours = (uptime_seconds % 86400) // 3600
@@ -251,7 +260,7 @@ class AdminCog(commands.Cog):
         embed.add_field(name="Latency", value=f"{round(self.bot.latency * 1000)}ms", inline=True)
         embed.add_field(name="Guilds", value=str(len(self.bot.guilds)), inline=True)
 
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(
         name="recalculate_reputation",

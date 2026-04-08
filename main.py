@@ -19,6 +19,7 @@ from cogs.admin import AdminCog
 from cogs.approval import ApprovalCog
 from cogs.leaderboard_stats import LeaderboardStatsCog
 from cogs.form_edit import FormEditCog
+from utils.views import ApprovalView  # <-- Import for persistent registration
 
 # Configure logging before anything else
 setup_logging(debug=False)
@@ -60,6 +61,20 @@ class TownyBot(commands.Bot):
         await self.add_cog(ApprovalCog(self))
         await self.add_cog(LeaderboardStatsCog(self))
         await self.add_cog(FormEditCog(self))
+
+        # Register persistent ApprovalView for handling button interactions after restart
+        # We register a single generic view; it will reconstruct form data from custom_id on interaction
+        persistent_view = ApprovalView(
+            table='',              # Will be filled from custom_id
+            form_id=0,             # Will be filled from custom_id
+            form_type='',
+            submitter_id=0,
+            guild_id=0,
+            channel_config_key='',
+            thread_prefix=''
+        )
+        self.add_view(persistent_view)
+        self.logger.info("Registered persistent ApprovalView.")
 
         # Sync slash commands globally
         await self.tree.sync()

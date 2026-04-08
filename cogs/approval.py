@@ -53,9 +53,12 @@ class ApprovalCog(commands.Cog):
     )
     @app_commands.default_permissions(manage_guild=True)
     async def list_pending(self, interaction: discord.Interaction):
+        # Defer to prevent interaction timeout
+        await interaction.response.defer(ephemeral=True)
+
         config = await DBService.get_guild_config(interaction.guild_id)
         if not config or not config.get('approval_channel_id'):
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ **Approval channel not configured.**\nUse `/set_approval_channel` first.",
                 ephemeral=True
             )
@@ -71,7 +74,7 @@ class ApprovalCog(commands.Cog):
                 pending.append((table, row['id'], prefix, row['submitted_by'], row['submitted_at']))
 
         if not pending:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "✅ **No pending forms** - the approval queue is empty.",
                 ephemeral=True
             )
@@ -94,7 +97,7 @@ class ApprovalCog(commands.Cog):
                 inline=False
             )
 
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(
         name="resend_pending",
@@ -107,9 +110,12 @@ class ApprovalCog(commands.Cog):
         form_id: str
     ):
         """Resend a pending form using its prefixed ID (e.g., rec_103)."""
+        # Defer to prevent interaction timeout
+        await interaction.response.defer(ephemeral=True)
+
         # Parse prefixed ID
         if '_' not in form_id:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ Invalid form ID format. Use like `rec_103`, `rep_5`, etc.",
                 ephemeral=True
             )
@@ -118,7 +124,7 @@ class ApprovalCog(commands.Cog):
         try:
             numeric_id = int(num_str)
         except ValueError:
-            await interaction.response.send_message("❌ Invalid numeric ID.", ephemeral=True)
+            await interaction.followup.send("❌ Invalid numeric ID.", ephemeral=True)
             return
 
         # Find table from prefix
@@ -128,7 +134,7 @@ class ApprovalCog(commands.Cog):
                 table = t
                 break
         if not table:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"❌ Unknown prefix `{prefix}`. Valid prefixes: {', '.join(self._TABLE_PREFIX.values())}",
                 ephemeral=True
             )
@@ -140,7 +146,7 @@ class ApprovalCog(commands.Cog):
             numeric_id
         )
         if not row:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"❌ No pending form with ID `{form_id}`.",
                 ephemeral=True
             )
@@ -148,7 +154,7 @@ class ApprovalCog(commands.Cog):
 
         config = await DBService.get_guild_config(interaction.guild_id)
         if not config or not config.get('approval_channel_id'):
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ Approval channel not configured. Use `/set_approval_channel` first.",
                 ephemeral=True
             )
@@ -156,7 +162,7 @@ class ApprovalCog(commands.Cog):
 
         approval_channel = self.bot.get_channel(config['approval_channel_id'])
         if not approval_channel:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ Approval channel not found - the channel may have been deleted.",
                 ephemeral=True
             )
@@ -187,15 +193,23 @@ class ApprovalCog(commands.Cog):
             thread_prefix=thread_prefix,
             confirmation_msg_id=None,
             confirmation_channel_id=None,
-            form_data=None
+            form_data=None,
+            # New: track the resend command's confirmation message for cleanup
+            resend_confirmation_msg_id=None,
+            resend_confirmation_channel_id=interaction.channel_id
         )
 
         msg = await approval_channel.send(embed=embed, view=view)
         await DBService.set_approval_message_id(table, numeric_id, msg.id)
-        await interaction.response.send_message(
+
+        # Send confirmation and store its ID for cleanup
+        confirm_msg = await interaction.followup.send(
             f"✅ **Form `{form_id}` resent to {approval_channel.mention}.**",
-            ephemeral=True
+            ephemeral=True,
+            wait=True
         )
+        # Update the view with the confirmation message ID
+        view.resend_confirmation_msg_id = confirm_msg.id
 
 async def setup(bot):
     await bot.add_cog(ApprovalCog(bot))

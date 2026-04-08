@@ -40,6 +40,9 @@ class LeaderboardStatsCog(commands.Cog):
         category: app_commands.Choice[str],
         period: app_commands.Choice[str]
     ):
+        # Defer to prevent timeout while fetching data
+        await interaction.response.defer()
+
         try:
             if category.value == "reputation":
                 rows = await DBService.get_leaderboard(period.value)
@@ -75,11 +78,11 @@ class LeaderboardStatsCog(commands.Cog):
                 embed.description = "\n".join(lines)
                 embed.set_footer(text=f"Showing top {min(len(rows), 10)} out of {len(rows)}")
 
-            await interaction.response.send_message(embed=embed)
+            await interaction.followup.send(embed=embed)
 
         except Exception as e:
             logger.exception(f"Leaderboard error: {e}")
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ **Failed to load leaderboard.** Please try again later.",
                 ephemeral=True
             )
@@ -105,6 +108,9 @@ class LeaderboardStatsCog(commands.Cog):
         member: discord.Member,
         period: app_commands.Choice[str] = None
     ):
+        # Defer to prevent timeout while fetching detailed stats
+        await interaction.response.defer()
+
         try:
             if period is None:
                 period = app_commands.Choice(name="All Time", value="all")
@@ -159,11 +165,11 @@ class LeaderboardStatsCog(commands.Cog):
             )
             embed.set_footer(text="Only approved forms count towards reputation")
 
-            await interaction.response.send_message(embed=embed)
+            await interaction.followup.send(embed=embed)
 
         except Exception as e:
             logger.exception(f"Stats command error: {e}")
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ **Failed to load statistics.** Please try again later.",
                 ephemeral=True
             )
