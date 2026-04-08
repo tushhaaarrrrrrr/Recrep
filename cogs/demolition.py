@@ -11,6 +11,11 @@ logger = get_logger(__name__)
 class DemolitionCog(commands.Cog):
     """Commands for submitting demolition reports and admin demolition requests."""
 
+    _TABLE_PREFIX = {
+        'demolition_report': 'dem',
+        'demolition_request': 'dmr'
+    }
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -45,7 +50,7 @@ class DemolitionCog(commands.Cog):
             screenshots = [s for s in (screenshot1, screenshot2, screenshot3, screenshot4, screenshot5) if s]
             if not screenshots:
                 await interaction.followup.send(
-                    "❌ **At least one screenshot is required.** Please attach an image.",
+                    "❌ At least one screenshot is required. Please attach an image.",
                     ephemeral=True
                 )
                 return
@@ -74,7 +79,10 @@ class DemolitionCog(commands.Cog):
                 'screenshot_urls': data['screenshot_urls']
             }
 
-            confirm_msg = await interaction.followup.send("✅ Demolition report submitted - pending approval.")
+            prefix = self._TABLE_PREFIX['demolition_report']
+            display_id = f"{prefix}_{form_id}"
+
+            confirm_msg = await interaction.followup.send(f"✅ Demolition report `{display_id}` submitted – pending approval.")
 
             config = await DBService.get_guild_config(interaction.guild_id)
             if config and config.get('approval_channel_id'):
@@ -95,7 +103,7 @@ class DemolitionCog(commands.Cog):
                         if len(screenshot_urls) > 1:
                             embed.add_field(name="Additional Screenshots", value=f"{len(screenshot_urls)-1} more", inline=False)
 
-                    embed.set_footer(text=f"Form ID: {form_id}")
+                    embed.set_footer(text=f"Form ID: {display_id}")
 
                     view = ApprovalView(
                         table='demolition_report',
@@ -149,7 +157,7 @@ class DemolitionCog(commands.Cog):
             screenshots = [s for s in (screenshot1, screenshot2, screenshot3, screenshot4, screenshot5) if s]
             if not screenshots:
                 await interaction.followup.send(
-                    "❌ **At least one screenshot is required.** Please attach an image.",
+                    "❌ At least one screenshot is required. Please attach an image.",
                     ephemeral=True
                 )
                 return
@@ -177,7 +185,10 @@ class DemolitionCog(commands.Cog):
                 'screenshot_urls': data['screenshot_urls']
             }
 
-            confirm_msg = await interaction.followup.send("📢 Demolition request submitted - pending admin review.")
+            prefix = self._TABLE_PREFIX['demolition_request']
+            display_id = f"{prefix}_{form_id}"
+
+            confirm_msg = await interaction.followup.send(f"📢 Demolition request `{display_id}` submitted – pending admin review.")
 
             config = await DBService.get_guild_config(interaction.guild_id)
             if config and config.get('approval_channel_id'):
@@ -197,7 +208,7 @@ class DemolitionCog(commands.Cog):
                         if len(screenshot_urls) > 1:
                             embed.add_field(name="Additional Screenshots", value=f"{len(screenshot_urls)-1} more", inline=False)
 
-                    embed.set_footer(text=f"Request ID: {form_id}")
+                    embed.set_footer(text=f"Request ID: {display_id}")
 
                     view = ApprovalView(
                         table='demolition_request',

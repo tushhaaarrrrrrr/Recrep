@@ -11,6 +11,10 @@ logger = get_logger(__name__)
 class RecruitmentCog(commands.Cog):
     """Commands for submitting recruitment logs."""
 
+    _TABLE_PREFIX = {
+        'recruitment': 'rec'
+    }
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -75,7 +79,10 @@ class RecruitmentCog(commands.Cog):
                 'screenshot_urls': data['screenshot_urls']
             }
 
-            confirm_msg = await interaction.followup.send("✅ Recruitment logged - pending approval.")
+            prefix = self._TABLE_PREFIX['recruitment']
+            display_id = f"{prefix}_{form_id}"
+
+            confirm_msg = await interaction.followup.send(f"✅ Recruitment `{display_id}` logged - pending approval.")
 
             config = await DBService.get_guild_config(interaction.guild_id)
             if config and config.get('approval_channel_id'):
@@ -97,7 +104,7 @@ class RecruitmentCog(commands.Cog):
                         embed.set_image(url=screenshot_urls[0])
                         if len(screenshot_urls) > 1:
                             embed.add_field(name="Additional Screenshots", value=f"{len(screenshot_urls)-1} more", inline=False)
-                    embed.set_footer(text=f"Form ID: {form_id}")
+                    embed.set_footer(text=f"Form ID: {display_id}")
 
                     view = ApprovalView(
                         table='recruitment',

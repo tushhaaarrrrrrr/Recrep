@@ -11,6 +11,10 @@ logger = get_logger(__name__)
 class InvoiceCog(commands.Cog):
     """Commands for submitting purchase invoices (plots or mall shops)."""
 
+    _TABLE_PREFIX = {
+        'purchase_invoice': 'inv'
+    }
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -95,7 +99,10 @@ class InvoiceCog(commands.Cog):
                 'screenshot_urls': data['screenshot_urls']
             }
 
-            confirm_msg = await interaction.followup.send("✅ Invoice submitted - pending approval.")
+            prefix = self._TABLE_PREFIX['purchase_invoice']
+            display_id = f"{prefix}_{form_id}"
+
+            confirm_msg = await interaction.followup.send(f"✅ Invoice `{display_id}` submitted - pending approval.")
 
             config = await DBService.get_guild_config(interaction.guild_id)
             if config and config.get('approval_channel_id'):
@@ -128,7 +135,7 @@ class InvoiceCog(commands.Cog):
                         if len(screenshot_urls) > 1:
                             embed.add_field(name="Additional Screenshots", value=f"{len(screenshot_urls)-1} more", inline=False)
 
-                    embed.set_footer(text=f"Form ID: {form_id}")
+                    embed.set_footer(text=f"Form ID: {display_id}")
 
                     view = ApprovalView(
                         table='purchase_invoice',

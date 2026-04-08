@@ -13,6 +13,16 @@ logger = get_logger(__name__)
 class ApprovalView(discord.ui.View):
     """View with Approve/Deny/Hold buttons for form approval."""
 
+    _TABLE_PREFIX = {
+        'recruitment': 'rec',
+        'progress_report': 'rep',
+        'purchase_invoice': 'inv',
+        'demolition_report': 'dem',
+        'demolition_request': 'dmr',
+        'eviction_report': 'evc',
+        'scroll_completion': 'scr'
+    }
+
     def __init__(self, table: str, form_id: int, form_type: str, submitter_id: int,
                  guild_id: int, channel_config_key: str, thread_prefix: str,
                  confirmation_msg_id: int = None, confirmation_channel_id: int = None,
@@ -28,6 +38,10 @@ class ApprovalView(discord.ui.View):
         self.confirmation_msg_id = confirmation_msg_id
         self.confirmation_channel_id = confirmation_channel_id
         self.form_data = form_data
+
+    def _get_display_id(self) -> str:
+        prefix = self._TABLE_PREFIX.get(self.table, 'unk')
+        return f"{prefix}_{self.form_id}"
 
     async def _is_authorized(self, interaction: discord.Interaction) -> bool:
         has_admin = await DBService.user_has_role(interaction.user.id, 'admin')
@@ -84,14 +98,20 @@ class ApprovalView(discord.ui.View):
         extra_count = len(url_list) - 1 if url_list else 0
         now_utc = datetime.now(timezone.utc)
         timestamp_str = now_utc.strftime('%Y-%m-%d %H:%M:%S UTC')
+        display_id = self._get_display_id()
 
         if self.table == 'recruitment':
+            # Build notification text with Discord username if present
+            details = summary
+            discord_username = self.form_data.get('discord_username') if self.form_data else None
+            if discord_username:
+                details += f"\n• **Discord:** {discord_username}"
             notification = (
                 f"✅ **{self.form_type.replace('_', ' ').title()} Approved**\n"
                 f"• **Submitted by:** {submitter_name}\n"
                 f"• **Approved by:** {approver.display_name}\n"
-                f"• **Form ID:** {self.form_id}\n"
-                f"• **Details:** {summary}\n"
+                f"• **Form ID:** {display_id}\n"
+                f"• **Details:** {details}\n"
                 f"• **Timestamp:** {timestamp_str}"
             )
             try:
@@ -107,7 +127,7 @@ class ApprovalView(discord.ui.View):
             )
             embed.add_field(name="Submitted by", value=submitter_name, inline=True)
             embed.add_field(name="Approved by", value=approver.display_name, inline=True)
-            embed.add_field(name="Form ID", value=str(self.form_id), inline=True)
+            embed.add_field(name="Form ID", value=display_id, inline=True)
             embed.add_field(name="Details", value=summary, inline=False)
 
             if first_url:
@@ -150,6 +170,7 @@ class ApprovalView(discord.ui.View):
 
     async def _handle_approval(self, interaction: discord.Interaction, approve: bool, hold: bool = False):
         await interaction.response.defer()
+        display_id = self._get_display_id()
 
         # Delete the confirmation message from its original channel
         if self.confirmation_msg_id and self.confirmation_channel_id:
@@ -177,8 +198,12 @@ class ApprovalView(discord.ui.View):
         try:
             await interaction.edit_original_response(view=self)
         except discord.NotFound:
-            # Original message may have been deleted already
-            pass
+            # The original approval message might have been deleted. Suggest using /resend_pending.
+            await interaction.followup.send(
+                "⚠️ The original approval message could not be found. Please use `/resend_pending` to recreate it.",
+                ephemeral=True
+            )
+            return
 
         current = await self._fetch_form_details()
         current_status = current.get('status') if current else None
@@ -203,13 +228,12 @@ class ApprovalView(discord.ui.View):
                 await DBService.approve_form(self.table, self.form_id, interaction.user.id)
                 await self._send_notification(interaction.guild, interaction.user)
 
-                # Delete the approval embed message (ignore if already gone)
                 try:
                     await interaction.message.delete()
                 except (discord.NotFound, AttributeError):
                     pass
                 await interaction.followup.send(
-                    f"✅ **Form #{self.form_id} approved** by {interaction.user.display_name}.",
+                    f"✅ **Form {display_id} approved** by {interaction.user.display_name}.",
                     ephemeral=True
                 )
             elif hold:
@@ -219,11 +243,15 @@ class ApprovalView(discord.ui.View):
                 try:
                     await interaction.edit_original_response(view=self)
                 except discord.NotFound:
-                    pass
+                    await interaction.followup.send(
+                        "⚠️ The original approval message could not be found. Please use `/resend_pending` to recreate it.",
+                        ephemeral=True
+                    )
+                    return
                 await interaction.followup.edit_message(
                     message_id=interaction.message.id,
                     content=(
-                        f"⏸️ **Form #{self.form_id} put on hold** by {interaction.user.display_name}.\n"
+                        f"⏸️ **Form {display_id} put on hold** by {interaction.user.display_name}.\n"
                         "*You can approve or deny it later using the buttons below.*"
                     ),
                     view=self
@@ -236,12 +264,11 @@ class ApprovalView(discord.ui.View):
                 except (discord.NotFound, AttributeError):
                     pass
                 await interaction.followup.send(
-                    f"❌ **Form #{self.form_id} denied** by {interaction.user.display_name}.",
+                    f"❌ **Form {display_id} denied** by {interaction.user.display_name}.",
                     ephemeral=True
                 )
         except Exception as e:
             logger.error(f"Error handling approval: {e}", exc_info=True)
-            # Re‑enable buttons on error
             for child in self.children:
                 child.disabled = False
             try:

@@ -12,6 +12,9 @@ class ScrollCog(commands.Cog):
     """Commands for submitting scroll completion reports."""
 
     _VALID_SCROLL_TYPES = ['common', 'special', 'epic', 'mythic', 'legendary', 'mystery', 'spawn_egg']
+    _TABLE_PREFIX = {
+        'scroll_completion': 'scr'
+    }
 
     def __init__(self, bot):
         self.bot = bot
@@ -46,7 +49,7 @@ class ScrollCog(commands.Cog):
             if scroll_type_lower not in self._VALID_SCROLL_TYPES:
                 valid_list = ", ".join(self._VALID_SCROLL_TYPES)
                 await interaction.followup.send(
-                    f"❌ **Invalid scroll type.**\nValid options: `{valid_list}`",
+                    f"❌ Invalid scroll type.\nValid options: `{valid_list}`",
                     ephemeral=True
                 )
                 return
@@ -54,7 +57,7 @@ class ScrollCog(commands.Cog):
             screenshots = [screenshot1] + [s for s in (screenshot2, screenshot3, screenshot4, screenshot5) if s]
             if not screenshots:
                 await interaction.followup.send(
-                    "❌ **At least one screenshot is required.** Please attach an image.",
+                    "❌ At least one screenshot is required. Please attach an image.",
                     ephemeral=True
                 )
                 return
@@ -81,7 +84,10 @@ class ScrollCog(commands.Cog):
                 'screenshot_urls': data['screenshot_urls']
             }
 
-            confirm_msg = await interaction.followup.send("✅ Scroll completion report submitted - pending approval.")
+            prefix = self._TABLE_PREFIX['scroll_completion']
+            display_id = f"{prefix}_{form_id}"
+
+            confirm_msg = await interaction.followup.send(f"✅ Scroll report `{display_id}` submitted – pending approval.")
 
             config = await DBService.get_guild_config(interaction.guild_id)
             if config and config.get('approval_channel_id'):
@@ -101,7 +107,7 @@ class ScrollCog(commands.Cog):
                         if len(screenshot_urls) > 1:
                             embed.add_field(name="Additional Screenshots", value=f"{len(screenshot_urls)-1} more", inline=False)
 
-                    embed.set_footer(text=f"Form ID: {form_id}")
+                    embed.set_footer(text=f"Form ID: {display_id}")
 
                     view = ApprovalView(
                         table='scroll_completion',

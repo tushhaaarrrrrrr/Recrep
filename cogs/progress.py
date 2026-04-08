@@ -11,6 +11,10 @@ logger = get_logger(__name__)
 class ProgressCog(commands.Cog):
     """Commands for submitting progress reports on building projects."""
 
+    _TABLE_PREFIX = {
+        'progress_report': 'rep'
+    }
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -45,7 +49,7 @@ class ProgressCog(commands.Cog):
             screenshots = [s for s in (screenshot1, screenshot2, screenshot3, screenshot4, screenshot5) if s]
             if not screenshots:
                 await interaction.followup.send(
-                    "❌ **At least one screenshot is required.** Please attach an image.",
+                    "❌ At least one screenshot is required. Please attach an image.",
                     ephemeral=True
                 )
                 return
@@ -74,7 +78,10 @@ class ProgressCog(commands.Cog):
                 'screenshot_urls': data['screenshot_urls']
             }
 
-            confirm_msg = await interaction.followup.send("✅ Progress report submitted - pending approval.")
+            prefix = self._TABLE_PREFIX['progress_report']
+            display_id = f"{prefix}_{form_id}"
+
+            confirm_msg = await interaction.followup.send(f"✅ Progress report `{display_id}` submitted – pending approval.")
 
             config = await DBService.get_guild_config(interaction.guild_id)
             if config and config.get('approval_channel_id'):
@@ -96,7 +103,7 @@ class ProgressCog(commands.Cog):
                         if len(screenshot_urls) > 1:
                             embed.add_field(name="Additional Screenshots", value=f"{len(screenshot_urls)-1} more", inline=False)
 
-                    embed.set_footer(text=f"Form ID: {form_id}")
+                    embed.set_footer(text=f"Form ID: {display_id}")
 
                     view = ApprovalView(
                         table='progress_report',

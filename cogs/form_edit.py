@@ -19,6 +19,16 @@ class FormEditCog(commands.Cog):
         'scroll_completion'
     ]
 
+    TABLE_PREFIX = {
+        'recruitment': 'rec',
+        'progress_report': 'rep',
+        'purchase_invoice': 'inv',
+        'demolition_report': 'dem',
+        'demolition_request': 'dmr',
+        'eviction_report': 'evc',
+        'scroll_completion': 'scr'
+    }
+
     ALLOWED_FIELDS = {
         'recruitment': {
             'ingame_username': 'In-game Username',
@@ -64,28 +74,47 @@ class FormEditCog(commands.Cog):
 
     @app_commands.command(name="form", description="Edit a pending or held form")
     @app_commands.describe(
-        table="The table containing the form (e.g., recruitment, progress_report)",
-        form_id="ID of the form to edit",
+        form_id="Form ID with prefix (e.g., rec_1, rep_2, inv_3)",
         field="Field to edit (see list of valid fields)",
         value="New value for the field"
     )
     async def form_edit(
         self,
         interaction: discord.Interaction,
-        table: str,
-        form_id: int,
+        form_id: str,
         field: str,
         value: str
     ):
         """Edit a specific field of a pending or held form."""
-        if table not in self.VALID_TABLES:
+        if '_' not in form_id:
             await interaction.response.send_message(
-                f"❌ Invalid table name. Valid options: {', '.join(self.VALID_TABLES)}",
+                "❌ Invalid form ID format. Use format like `rec_1`, `rep_2`, `inv_3`, etc.",
+                ephemeral=True
+            )
+            return
+        prefix, num_part = form_id.split('_', 1)
+        try:
+            numeric_id = int(num_part)
+        except ValueError:
+            await interaction.response.send_message(
+                "❌ Invalid numeric ID in form ID.",
                 ephemeral=True
             )
             return
 
-        form_info = await DBService.get_form_by_id(table, form_id)
+        table = None
+        for t, p in self.TABLE_PREFIX.items():
+            if p == prefix:
+                table = t
+                break
+        if not table:
+            await interaction.response.send_message(
+                f"❌ Unknown prefix `{prefix}`. Valid prefixes: {', '.join(self.TABLE_PREFIX.values())}",
+                ephemeral=True
+            )
+            return
+
+        form_info = await DBService.get_form_by_id(table, numeric_id)
         if not form_info:
             await interaction.response.send_message("❌ Form not found.", ephemeral=True)
             return
@@ -125,18 +154,17 @@ class FormEditCog(commands.Cog):
                 await interaction.response.send_message("❌ Value must be a number.", ephemeral=True)
                 return
 
-        await DBService.update_form_field(table, form_id, field, value)
-        logger.info(f"User {interaction.user.id} edited {table}#{form_id}: {field}={value}")
+        await DBService.update_form_field(table, numeric_id, field, value)
+        logger.info(f"User {interaction.user.id} edited {table}#{numeric_id}: {field}={value}")
 
-        await self._refresh_approval_embed(interaction.guild, table, form_id)
+        await self._refresh_approval_embed(interaction.guild, table, numeric_id)
 
         await interaction.response.send_message(
-            f"✅ **Form #{form_id} updated.** Field `{field}` changed from `{original_value}` to `{value}`.",
+            f"✅ **Form `{form_id}` updated.** Field `{field}` changed from `{original_value}` to `{value}`.",
             ephemeral=True
         )
 
     async def _refresh_approval_embed(self, guild: discord.Guild, table: str, form_id: int):
-        """Update the approval embed in the channel with the latest form data."""
         config = await DBService.get_guild_config(guild.id)
         if not config or not config.get('approval_channel_id'):
             logger.warning(f"No approval channel configured for guild {guild.id}")
@@ -167,7 +195,6 @@ class FormEditCog(commands.Cog):
         await message.edit(embed=embed)
 
     def _build_embed(self, table: str, form_data: dict, form_id: int) -> discord.Embed:
-        """Build an embed for the approval channel based on form type."""
         title_map = {
             'recruitment': 'Recruitment Log',
             'progress_report': 'Progress Report',
@@ -190,8 +217,11 @@ class FormEditCog(commands.Cog):
         color = color_map.get(table, discord.Color.blue())
         embed = discord.Embed(title=title, color=color, timestamp=discord.utils.utcnow())
 
+        prefix = self.TABLE_PREFIX.get(table, 'unk')
+        display_id = f"{prefix}_{form_id}"
+
         embed.add_field(name="Submitter", value=f"<@{form_data['submitted_by']}>", inline=True)
-        embed.add_field(name="Form ID", value=str(form_id), inline=True)
+        embed.add_field(name="Form ID", value=display_id, inline=True)
 
         if table == 'recruitment':
             embed.add_field(name="New Player", value=f"{form_data['nickname']} ({form_data['ingame_username']})", inline=False)

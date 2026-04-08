@@ -11,6 +11,10 @@ logger = get_logger(__name__)
 class EvictionCog(commands.Cog):
     """Commands for submitting eviction reports."""
 
+    _TABLE_PREFIX = {
+        'eviction_report': 'evc'
+    }
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -45,7 +49,7 @@ class EvictionCog(commands.Cog):
             screenshots = [s for s in (screenshot1, screenshot2, screenshot3, screenshot4, screenshot5) if s]
             if not screenshots:
                 await interaction.followup.send(
-                    "❌ **At least one screenshot is required.** Please attach an image.",
+                    "❌ At least one screenshot is required. Please attach an image.",
                     ephemeral=True
                 )
                 return
@@ -74,7 +78,10 @@ class EvictionCog(commands.Cog):
                 'screenshot_urls': data['screenshot_urls']
             }
 
-            confirm_msg = await interaction.followup.send("✅ Eviction report submitted - pending approval.")
+            prefix = self._TABLE_PREFIX['eviction_report']
+            display_id = f"{prefix}_{form_id}"
+
+            confirm_msg = await interaction.followup.send(f"✅ Eviction report `{display_id}` submitted – pending approval.")
 
             config = await DBService.get_guild_config(interaction.guild_id)
             if config and config.get('approval_channel_id'):
@@ -95,7 +102,7 @@ class EvictionCog(commands.Cog):
                         if len(screenshot_urls) > 1:
                             embed.add_field(name="Additional Screenshots", value=f"{len(screenshot_urls)-1} more", inline=False)
 
-                    embed.set_footer(text=f"Form ID: {form_id}")
+                    embed.set_footer(text=f"Form ID: {display_id}")
 
                     view = ApprovalView(
                         table='eviction_report',

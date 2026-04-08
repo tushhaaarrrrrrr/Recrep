@@ -286,7 +286,6 @@ class DBService:
     # Category leaderboards
     @staticmethod
     async def get_help_leaderboard(period: str, limit: int = 10) -> List[Dict]:
-        """Return top users by number of helps (progress_help entries)."""
         if period == 'weekly':
             time_filter = "created_at >= date_trunc('week', CURRENT_DATE)"
         elif period == 'biweekly':
@@ -448,7 +447,6 @@ class DBService:
     # Form editing support
     @staticmethod
     async def get_form_by_id(table: str, form_id: int) -> Optional[tuple]:
-        """Return (status, submitted_by) for the given form ID and table."""
         row = await DBService.fetchrow(f"SELECT status, submitted_by FROM {table} WHERE id = $1", form_id)
         if row:
             return (row['status'], row['submitted_by'])
@@ -456,6 +454,5 @@ class DBService:
 
     @staticmethod
     async def update_form_field(table: str, form_id: int, field: str, value):
-        """Update a single field in a form table."""
         query = f"UPDATE {table} SET {field} = $1 WHERE id = $2"
         await DBService.execute(query, value, form_id)
