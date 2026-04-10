@@ -9,7 +9,8 @@ from flask import Flask, jsonify, request, render_template_string
 from flask_socketio import SocketIO, emit
 
 from services.db_service import DBService
-from database.connection import init_db_pool
+from database.connection import init_db_pool, close_db_pool
+from utils.logger import get_logger
 
 BOT_SCRIPT = "main.py"
 PID_FILE = "bot.pid"
@@ -17,58 +18,56 @@ VENV_PYTHON = os.path.join("venv", "Scripts", "python.exe")
 LOG_FILE = "bot.log"
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "replace-this-in-production"
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "replace-this-in-production")
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
-# ----------------------------------------------------------------------
-# Async DB loop
-# ----------------------------------------------------------------------
+logger = get_logger(__name__)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Async event loop
+# ─────────────────────────────────────────────────────────────────────────────
 _db_pool = None
 _event_loop = None
-_loop_thread = None
 
 
-async def init_global_pool():
+async def _init_global_pool():
     global _db_pool
     _db_pool = await init_db_pool()
     DBService._db_pool = _db_pool
-    return _db_pool
 
 
-def start_async_loop():
+def _start_async_loop():
     global _event_loop
     _event_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(_event_loop)
-    _event_loop.run_until_complete(init_global_pool())
+    _event_loop.run_until_complete(_init_global_pool())
     _event_loop.run_forever()
 
 
 def run_async(coro):
     if _event_loop is None:
         raise RuntimeError("Async loop not started")
-    future = asyncio.run_coroutine_threadsafe(coro, _event_loop)
-    return future.result()
+    return asyncio.run_coroutine_threadsafe(coro, _event_loop).result(timeout=30)
 
 
-_loop_thread = threading.Thread(target=start_async_loop, daemon=True)
+_loop_thread = threading.Thread(target=_start_async_loop, daemon=True)
 _loop_thread.start()
 time.sleep(0.5)
 
-# ----------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
 # Bot process management
-# ----------------------------------------------------------------------
-def get_bot_process():
+# ─────────────────────────────────────────────────────────────────────────────
+def _get_bot_process():
     if not os.path.exists(PID_FILE):
         return None
     try:
-        with open(PID_FILE, "r") as f:
+        with open(PID_FILE) as f:
             pid = int(f.read().strip())
         proc = psutil.Process(pid)
         if BOT_SCRIPT in " ".join(proc.cmdline()):
             return proc
-        else:
-            os.remove(PID_FILE)
-            return None
+        os.remove(PID_FILE)
+        return None
     except (psutil.NoSuchProcess, psutil.AccessDenied, ValueError, FileNotFoundError):
         if os.path.exists(PID_FILE):
             os.remove(PID_FILE)
@@ -76,30 +75,26 @@ def get_bot_process():
 
 
 def get_bot_status():
-    proc = get_bot_process()
+    proc = _get_bot_process()
     if proc is None:
         return {"running": False, "pid": None, "uptime": None}
-    uptime = int(time.time() - proc.create_time())
-    days = uptime // 86400
-    hours = (uptime % 86400) // 3600
-    minutes = (uptime % 3600) // 60
-    seconds = uptime % 60
-    uptime_str = f"{days}d {hours}h {minutes}m {seconds}s"
-    return {"running": True, "pid": proc.pid, "uptime": uptime_str}
+    secs = int(time.time() - proc.create_time())
+    uptime = f"{secs//86400}d {(secs%86400)//3600}h {(secs%3600)//60}m {secs%60}s"
+    return {"running": True, "pid": proc.pid, "uptime": uptime}
 
 
 def start_bot():
-    if get_bot_process() is not None:
+    if _get_bot_process():
         return False, "Bot is already running."
     proc = subprocess.Popen([VENV_PYTHON, BOT_SCRIPT])
     with open(PID_FILE, "w") as f:
         f.write(str(proc.pid))
-    return True, f"Bot started with PID {proc.pid}."
+    return True, f"Bot started (PID {proc.pid})."
 
 
 def stop_bot():
-    proc = get_bot_process()
-    if proc is None:
+    proc = _get_bot_process()
+    if not proc:
         return False, "Bot is not running."
     proc.terminate()
     time.sleep(2)
@@ -127,9 +122,9 @@ def reset_bot():
     return True, "Database and S3 reset, bot restarted."
 
 
-# ----------------------------------------------------------------------
-# Async helpers for data
-# ----------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
+# Data helpers
+# ─────────────────────────────────────────────────────────────────────────────
 FORM_TABLES = [
     "recruitment",
     "progress_report",
@@ -139,62 +134,27 @@ FORM_TABLES = [
     "scroll_completion",
 ]
 
-FORM_LABELS = {
-    "recruitment": "Recruitments",
-    "progress_report": "Progress Reports",
-    "purchase_invoice": "Invoices",
-    "demolition_report": "Demolitions",
-    "eviction_report": "Evictions",
-    "scroll_completion": "Scrolls",
-}
-
-LEADERBOARD_CATEGORIES = [
-    "reputation",
-    "recruitment",
-    "progress_report",
-    "progress_help",
-    "purchase_invoice",
-    "demolition_report",
-    "eviction_report",
-    "scroll_completion",
-]
-
 
 async def async_get_overview():
-    approved_counts = {}
-    pending_counts = {}
-    total_approved = 0
-    total_pending = 0
+    approved_counts, pending_counts = {}, {}
+    total_approved = total_pending = 0
 
     for table in FORM_TABLES:
-        row_approved = await DBService.fetchrow(
-            f"SELECT COUNT(*) FROM {table} WHERE status = 'approved'"
-        )
-        row_pending = await DBService.fetchrow(
-            f"SELECT COUNT(*) FROM {table} WHERE status = 'pending'"
-        )
-        approved = row_approved[0] if row_approved else 0
-        pending = row_pending[0] if row_pending else 0
-        approved_counts[table] = approved
-        pending_counts[table] = pending
-        total_approved += approved
-        total_pending += pending
+        r_a = await DBService.fetchrow(f"SELECT COUNT(*) FROM {table} WHERE status='approved'")
+        r_p = await DBService.fetchrow(f"SELECT COUNT(*) FROM {table} WHERE status='pending'")
+        a, p = (r_a[0] if r_a else 0), (r_p[0] if r_p else 0)
+        approved_counts[table], pending_counts[table] = a, p
+        total_approved += a
+        total_pending += p
 
-    row_rep = await DBService.fetchrow(
-        "SELECT COALESCE(SUM(reputation), 0) FROM staff_member"
-    )
-    total_rep = row_rep[0] if row_rep else 0
-    row_staff_count = await DBService.fetchrow(
-        "SELECT COUNT(*) FROM staff_member"
-    )
-    staff_count = row_staff_count[0] if row_staff_count else 0
-
+    r_rep = await DBService.fetchrow("SELECT COALESCE(SUM(reputation),0) FROM staff_member")
+    r_staff = await DBService.fetchrow("SELECT COUNT(*) FROM staff_member")
     return {
         "totals": {
             "approved_total": total_approved,
             "pending_total": total_pending,
-            "reputation_total": total_rep,
-            "staff_total": staff_count,
+            "reputation_total": r_rep[0] if r_rep else 0,
+            "staff_total": r_staff[0] if r_staff else 0,
         },
         "approved_breakdown": approved_counts,
         "pending_breakdown": pending_counts,
@@ -205,25 +165,17 @@ async def async_get_activity(limit=30):
     activities = []
     for table in FORM_TABLES:
         rows = await DBService.fetch(
-            f"""
-            SELECT id, submitted_by, submitted_at, status
-            FROM {table}
-            ORDER BY submitted_at DESC
-            LIMIT $1
-            """,
-            limit,
+            f"SELECT id, submitted_by, submitted_at, status FROM {table} "
+            f"ORDER BY submitted_at DESC LIMIT $1", limit
         )
         for row in rows:
-            activities.append(
-                {
-                    "table": table,
-                    "id": row["id"],
-                    "submitted_by": row["submitted_by"],
-                    "submitted_at": row["submitted_at"].isoformat(),
-                    "status": row["status"],
-                }
-            )
-
+            activities.append({
+                "table": table,
+                "id": row["id"],
+                "submitted_by": str(row["submitted_by"]),
+                "submitted_at": row["submitted_at"].isoformat(),
+                "status": row["status"],
+            })
     activities.sort(key=lambda x: x["submitted_at"], reverse=True)
     return activities[:limit]
 
@@ -234,172 +186,162 @@ async def async_get_activity_timeseries(granularity: str):
         granularity = "weekly"
 
     if granularity == "daily":
-        span = 7
-        label_for = lambda i: "Today" if i == 0 else f"{i}d ago"
-        def bounds(i):
-            start = f"CURRENT_DATE - INTERVAL '{i} day'"
-            end = f"CURRENT_DATE - INTERVAL '{i - 1} day'"
-            return start, end
-
+        span, label_fn = 7, lambda i: "Today" if i == 0 else f"{i}d ago"
+        bounds = lambda i: (
+            f"CURRENT_DATE - INTERVAL '{i} day'",
+            f"CURRENT_DATE - INTERVAL '{i-1} day'"
+        )
     elif granularity == "monthly":
-        span = 6
-        label_for = lambda i: "This month" if i == 0 else f"{i}mo ago"
-        def bounds(i):
-            start = f"date_trunc('month', CURRENT_DATE) - INTERVAL '{i} month'"
-            end = f"date_trunc('month', CURRENT_DATE) - INTERVAL '{i - 1} month'"
-            return start, end
+        span, label_fn = 6, lambda i: "This month" if i == 0 else f"{i}mo ago"
+        bounds = lambda i: (
+            f"date_trunc('month',CURRENT_DATE) - INTERVAL '{i} month'",
+            f"date_trunc('month',CURRENT_DATE) - INTERVAL '{i-1} month'"
+        )
+    else:
+        span, label_fn = 8, lambda i: "This week" if i == 0 else f"{i}w ago"
+        bounds = lambda i: (
+            f"date_trunc('week',CURRENT_DATE) - INTERVAL '{i} week'",
+            f"date_trunc('week',CURRENT_DATE) - INTERVAL '{i-1} week'"
+        )
 
-    else:  # weekly
-        span = 8
-        label_for = lambda i: "This week" if i == 0 else f"{i}w ago"
-        def bounds(i):
-            start = f"date_trunc('week', CURRENT_DATE) - INTERVAL '{i} week'"
-            end = f"date_trunc('week', CURRENT_DATE) - INTERVAL '{i - 1} week'"
-            return start, end
-
-    labels = []
-    series = {
-        "recruitment": [],
-        "progress_report": [],
-        "progress_help": [],
-        "purchase_invoice": [],
-        "demolition_report": [],
-        "eviction_report": [],
-        "scroll_completion": [],
-        "reputation": [],
-    }
+    labels, series = [], {k: [] for k in [
+        "recruitment", "progress_report", "progress_help",
+        "purchase_invoice", "demolition_report", "eviction_report",
+        "scroll_completion", "reputation"
+    ]}
 
     for i in range(span - 1, -1, -1):
         start_expr, end_expr = bounds(i)
-        labels.append(label_for(i))
-
-        for table_key in [
-            "recruitment",
-            "progress_report",
-            "purchase_invoice",
-            "demolition_report",
-            "eviction_report",
-            "scroll_completion",
-        ]:
-            sql = (
-                f"SELECT COUNT(*) FROM {table_key} "
-                f"WHERE status = 'approved' "
-                f"AND submitted_at >= {start_expr} "
-                f"AND submitted_at < {end_expr}"
+        labels.append(label_fn(i))
+        for t in FORM_TABLES:
+            r = await DBService.fetchrow(
+                f"SELECT COUNT(*) FROM {t} WHERE status='approved' "
+                f"AND submitted_at >= {start_expr} AND submitted_at < {end_expr}"
             )
-            row = await DBService.fetchrow(sql)
-            value = row[0] if row else 0
-            series[table_key].append(value)
-
-        try:
-            sql_help = (
-                "SELECT COUNT(*) FROM progress_help "
-                f"WHERE created_at >= {start_expr} "
-                f"AND created_at < {end_expr}"
-            )
-            row_help = await DBService.fetchrow(sql_help)
-            help_value = row_help[0] if row_help else 0
-        except Exception:
-            help_value = 0
-        series["progress_help"].append(help_value)
-
-        row_rep = await DBService.fetchrow(
-            f"""
-            SELECT COALESCE(SUM(points), 0)
-            FROM reputation_log
-            WHERE created_at >= {start_expr}
-              AND created_at < {end_expr}
-            """
+            series[t].append(r[0] if r else 0)
+        r_h = await DBService.fetchrow(
+            f"SELECT COUNT(*) FROM reputation_log WHERE form_type='progress_help' "
+            f"AND created_at >= {start_expr} AND created_at < {end_expr}"
         )
-        rep_value = row_rep[0] if row_rep else 0
-        series["reputation"].append(rep_value)
+        series["progress_help"].append(r_h[0] if r_h else 0)
+        r_rep = await DBService.fetchrow(
+            f"SELECT COALESCE(SUM(points),0) FROM reputation_log "
+            f"WHERE created_at >= {start_expr} AND created_at < {end_expr}"
+        )
+        series["reputation"].append(r_rep[0] if r_rep else 0)
 
     return {"labels": labels, "series": series}
 
 
 async def async_get_leaderboard(category, period):
-    category = category.lower()
-    period = period.lower()
+    category, period = category.lower(), period.lower()
     if category == "reputation":
-        rows = await DBService.get_leaderboard(period)
-    else:
-        rows = await DBService.get_category_leaderboard(category, period)
-    return rows
+        return await DBService.get_leaderboard(period)
+    return await DBService.get_category_leaderboard(category, period)
 
 
 async def async_get_staff_directory():
     rows = await DBService.fetch(
-        "SELECT discord_id, display_name, reputation "
-        "FROM staff_member ORDER BY reputation DESC"
+        "SELECT discord_id, display_name, reputation FROM staff_member ORDER BY reputation DESC"
     )
-
     staff_map = {}
     for row in rows:
-        discord_id = row["discord_id"]
-        raw_name = row.get("display_name") or ""
-        if raw_name:
-            label = raw_name
-        else:
-            s = str(discord_id)
-            label = f"User {s[:4]}…{s[-4:]}" if len(s) > 8 else f"User {s}"
-        staff_map[discord_id] = {
-            "discord_id": discord_id,
-            "label": label,
-            "reputation": row["reputation"],
-            "recruitment": 0,
-            "progress_report": 0,
-            "progress_help": 0,
-            "purchase_invoice": 0,
-            "demolition_report": 0,
-            "eviction_report": 0,
-            "scroll_completion": 0,
-            "roles": [],
+        did = row["discord_id"]
+        sid = str(did)  # Always store as string to avoid JS precision loss
+        raw = row.get("display_name") or ""
+        label = raw if raw else (f"User {sid[:4]}…{sid[-4:]}" if len(sid) > 8 else f"User {sid}")
+        staff_map[sid] = {
+            "discord_id": sid, "label": label, "reputation": row["reputation"],
+            "recruitment": 0, "progress_report": 0, "progress_help": 0,
+            "purchase_invoice": 0, "demolition_report": 0, "eviction_report": 0,
+            "scroll_completion": 0, "approvals": 0, "roles": [],
         }
 
-    for category in LEADERBOARD_CATEGORIES:
-        if category == "reputation":
-            continue
-        try:
-            lb_rows = await DBService.get_category_leaderboard(category, "all")
-        except Exception:
-            continue
-        for r in lb_rows:
-            did = r["discord_id"]
-            if did not in staff_map:
-                s = str(did)
-                label = f"User {s[:4]}…{s[-4:]}" if len(s) > 8 else f"User {s}"
-                staff_map[did] = {
-                    "discord_id": did,
-                    "label": label,
-                    "reputation": 0,
-                    "recruitment": 0,
-                    "progress_report": 0,
-                    "progress_help": 0,
-                    "purchase_invoice": 0,
-                    "demolition_report": 0,
-                    "eviction_report": 0,
-                    "scroll_completion": 0,
-                    "roles": [],
+    for table in FORM_TABLES:
+        rows = await DBService.fetch(
+            f"SELECT submitted_by, COUNT(*) as cnt FROM {table} WHERE status='approved' GROUP BY submitted_by"
+        )
+        for r in rows:
+            sid = str(r["submitted_by"])
+            if sid not in staff_map:
+                staff_map[sid] = {
+                    "discord_id": sid, "label": f"User {sid}", "reputation": 0,
+                    "recruitment": 0, "progress_report": 0, "progress_help": 0,
+                    "purchase_invoice": 0, "demolition_report": 0, "eviction_report": 0,
+                    "scroll_completion": 0, "approvals": 0, "roles": [],
                 }
-            val = r.get("count") or r.get("points") or 0
-            staff_map[did][category] = val
+            staff_map[sid][table] = r["cnt"]
 
-    for did, data in staff_map.items():
-        try:
-            roles = await DBService.get_user_roles(did)
-        except Exception:
-            roles = []
-        data["roles"] = roles
-
-    staff_list = sorted(
-        staff_map.values(), key=lambda x: x["reputation"], reverse=True
+    rows = await DBService.fetch(
+        "SELECT staff_id, COUNT(*) as cnt FROM reputation_log WHERE form_type='progress_help' GROUP BY staff_id"
     )
-    return staff_list
+    for r in rows:
+        sid = str(r["staff_id"])
+        if sid in staff_map:
+            staff_map[sid]["progress_help"] = r["cnt"]
+
+    for table in FORM_TABLES:
+        rows = await DBService.fetch(
+            f"SELECT approved_by, COUNT(*) as cnt FROM {table} "
+            f"WHERE status='approved' AND approved_by IS NOT NULL GROUP BY approved_by"
+        )
+        for r in rows:
+            sid = str(r["approved_by"])
+            if sid in staff_map:
+                staff_map[sid]["approvals"] += r["cnt"]
+
+    for sid, data in staff_map.items():
+        try:
+            data["roles"] = await DBService.get_user_roles(int(sid))
+        except Exception:
+            data["roles"] = []
+
+    return sorted(staff_map.values(), key=lambda x: x["reputation"], reverse=True)
 
 
-# ----------------------------------------------------------------------
+async def async_get_user_history(discord_id_str: str):
+    """
+    BUG FIX: discord_id is received and stored as string to prevent JS integer precision loss.
+    We cast to Python int only when querying the database.
+    """
+    try:
+        discord_id_int = int(discord_id_str)
+    except (TypeError, ValueError):
+        return {"history": [], "counts": {}, "error": "Invalid user ID"}
+
+    history, counts = [], {}
+    for table in FORM_TABLES:
+        try:
+            rows = await DBService.fetch(
+                f"SELECT id, submitted_at, status FROM {table} "
+                f"WHERE submitted_by = $1::bigint ORDER BY submitted_at DESC",
+                discord_id_int
+            )
+        except Exception as e:
+            logger.error(f"Error querying {table} for {discord_id_int}: {e}")
+            rows = []
+        for row in rows:
+            history.append({
+                "table": table, "id": row["id"],
+                "submitted_at": row["submitted_at"].isoformat(),
+                "status": row["status"],
+            })
+        try:
+            r = await DBService.fetchrow(
+                f"SELECT COUNT(*) FROM {table} WHERE submitted_by = $1::bigint", discord_id_int
+            )
+            counts[table] = r[0] if r else 0
+        except Exception as e:
+            logger.error(f"Error counting {table} for {discord_id_int}: {e}")
+            counts[table] = 0
+
+    history.sort(key=lambda x: x["submitted_at"], reverse=True)
+    return {"history": history, "counts": counts}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Flask routes
-# ----------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
 @app.route("/")
 def index():
     return render_template_string(HTML_TEMPLATE)
@@ -413,46 +355,45 @@ def api_status():
 @app.route("/api/overview")
 def api_overview():
     try:
-        data = run_async(async_get_overview())
-        return jsonify(data)
+        return jsonify(run_async(async_get_overview()))
     except Exception as e:
+        logger.exception("Overview error")
         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/activity")
 def api_activity():
     try:
-        data = run_async(async_get_activity(30))
-        return jsonify(data)
+        return jsonify(run_async(async_get_activity(30)))
     except Exception as e:
+        logger.exception("Activity error")
         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/activity_timeseries")
 def api_activity_timeseries():
-    granularity = request.args.get("granularity", "weekly")
     try:
-        data = run_async(async_get_activity_timeseries(granularity))
-        return jsonify(data)
+        return jsonify(run_async(async_get_activity_timeseries(request.args.get("granularity", "weekly"))))
     except Exception as e:
+        logger.exception("Timeseries error")
         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/leaderboard/<category>/<period>")
 def api_leaderboard(category, period):
     try:
-        rows = run_async(async_get_leaderboard(category, period))
-        return jsonify(rows)
+        return jsonify(run_async(async_get_leaderboard(category, period)))
     except Exception as e:
+        logger.exception("Leaderboard error")
         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/staff")
 def api_staff():
     try:
-        staff = run_async(async_get_staff_directory())
-        return jsonify({"staff": staff})
+        return jsonify({"staff": run_async(async_get_staff_directory())})
     except Exception as e:
+        logger.exception("Staff error")
         return jsonify({"error": str(e)}), 500
 
 
@@ -462,6 +403,21 @@ def api_form_detail(table, form_id):
         row = run_async(DBService.fetchrow(f"SELECT * FROM {table} WHERE id = $1", form_id))
         return jsonify(dict(row) if row else None)
     except Exception as e:
+        logger.exception("Form detail error")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/user/<discord_id>/history")
+def api_user_history(discord_id):
+    """
+    BUG FIX: Route accepts discord_id as string (not <int:>) to preserve full precision.
+    The JS side sends it as a string that was originally serialized from the Python backend,
+    so no precision loss occurs in the URL.
+    """
+    try:
+        return jsonify(run_async(async_get_user_history(discord_id)))
+    except Exception as e:
+        logger.exception(f"User history error for {discord_id}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -489,10 +445,10 @@ def reset():
     return jsonify({"success": ok, "message": msg})
 
 
-# ----------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
 # WebSocket live logs
-# ----------------------------------------------------------------------
-def log_watcher():
+# ─────────────────────────────────────────────────────────────────────────────
+def _log_watcher():
     if not os.path.exists(LOG_FILE):
         open(LOG_FILE, "w").close()
     with open(LOG_FILE, "r", encoding="utf-8", errors="ignore") as f:
@@ -502,1273 +458,1162 @@ def log_watcher():
             if line:
                 socketio.emit("log", {"line": line.strip()})
             else:
-                time.sleep(0.5)
+                time.sleep(0.3)
 
 
 @socketio.on("connect")
 def handle_connect():
     emit("connected", {"data": "Connected"})
     if not hasattr(app, "_log_thread"):
-        app._log_thread = threading.Thread(target=log_watcher, daemon=True)
+        app._log_thread = threading.Thread(target=_log_watcher, daemon=True)
         app._log_thread.start()
 
 
-# ----------------------------------------------------------------------
-# HTML Template – Moonlit Ocean UI with Chart.js sizing fixes
-# ----------------------------------------------------------------------
-HTML_TEMPLATE = """
-<!DOCTYPE html>
+# ─────────────────────────────────────────────────────────────────────────────
+# HTML Template
+# ─────────────────────────────────────────────────────────────────────────────
+HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Recrep | Control Panel</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-    <style>
-        :root {
-            --space-indigo: #2b2d42;
-            --lavender-grey: #8d99ae;
-            --platinum: #edf2f4;
-            --surface-dark: #1e2230;
-            --surface-darker: #181b25;
-            --accent-soft: #4f8cc9;
-            --accent-strong: #f3c969;
-            --danger: #f07167;
-            --success: #70e000;
-            --warning: #ffb703;
-            --muted: #6c7281;
-            --radius-lg: 14px;
-            --radius-md: 10px;
-            --radius-pill: 999px;
-            --shadow-soft: 0 18px 45px rgba(0, 0, 0, 0.45);
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        html, body {
-            margin: 0;
-            padding: 0;
-            background: radial-gradient(circle at top, #3b3e57 0%, var(--space-indigo) 40%, #151728 100%);
-            color: var(--platinum);
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            -webkit-font-smoothing: antialiased;
-        }
-
-        body {
-            min-height: 100vh;
-        }
-
-        .page-frame {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 24px 18px 32px;
-        }
-
-        .page-header {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 16px;
-            margin-bottom: 20px;
-        }
-
-        .page-title-block h1 {
-            margin: 0;
-            font-size: 24px;
-            letter-spacing: 0.03em;
-        }
-
-        .page-title-block span {
-            display: inline-block;
-            margin-top: 4px;
-            font-size: 12px;
-            color: var(--lavender-grey);
-        }
-
-        .status-block {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            font-size: 12px;
-        }
-
-        .status-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 5px 10px;
-            border-radius: var(--radius-pill);
-            background: rgba(0, 0, 0, 0.25);
-            border: 1px solid rgba(237, 242, 244, 0.08);
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 999px;
-            background: var(--danger);
-            box-shadow: 0 0 10px rgba(240, 113, 103, 0.55);
-        }
-
-        .status-dot.online {
-            background: var(--success);
-            box-shadow: 0 0 10px rgba(112, 224, 0, 0.7);
-        }
-
-        .status-label {
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            font-size: 10px;
-            color: var(--lavender-grey);
-        }
-
-        .status-value {
-            font-weight: 600;
-            font-size: 12px;
-        }
-
-        .status-metadata {
-            color: var(--muted);
-        }
-
-        .control-strip {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-            background: linear-gradient(135deg, rgba(24, 27, 37, 0.95), rgba(31, 34, 48, 0.95));
-            border-radius: var(--radius-lg);
-            padding: 10px 14px;
-            border: 1px solid rgba(141, 153, 174, 0.25);
-            box-shadow: var(--shadow-soft);
-            margin-bottom: 20px;
-        }
-
-        .control-buttons {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-
-        .btn {
-            border: none;
-            outline: none;
-            border-radius: var(--radius-pill);
-            padding: 7px 14px;
-            font-size: 12px;
-            font-weight: 500;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transition: background 0.15s ease, transform 0.08s ease, box-shadow 0.15s ease;
-            background: rgba(141, 153, 174, 0.15);
-            color: var(--platinum);
-        }
-
-        .btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #4f8cc9, #8bbdf2);
-            color: #0f172a;
-        }
-
-        .btn-danger {
-            background: linear-gradient(135deg, #f07167, #fbb1a1);
-            color: #1b0b0b;
-        }
-
-        .btn-ghost {
-            background: transparent;
-            border: 1px solid rgba(141, 153, 174, 0.4);
-            color: var(--lavender-grey);
-        }
-
-        .control-message {
-            font-size: 11px;
-            color: var(--lavender-grey);
-            min-height: 18px;
-        }
-
-        .badge-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 10px;
-            background: rgba(15, 23, 42, 0.7);
-            border-radius: var(--radius-pill);
-            border: 1px solid rgba(141, 153, 174, 0.25);
-            font-size: 11px;
-            color: var(--lavender-grey);
-        }
-
-        .badge-pill span {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-            color: var(--platinum);
-        }
-
-        /* Tabs */
-        .tab-row {
-            display: flex;
-            gap: 8px;
-            border-bottom: 1px solid rgba(141, 153, 174, 0.2);
-            margin-bottom: 16px;
-        }
-
-        .tab {
-            position: relative;
-            padding: 7px 14px;
-            font-size: 12px;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            color: var(--lavender-grey);
-            cursor: pointer;
-        }
-
-        .tab::after {
-            content: "";
-            position: absolute;
-            left: 12px;
-            right: 12px;
-            bottom: -1px;
-            height: 2px;
-            border-radius: 999px;
-            background: transparent;
-            transition: background 0.18s ease, transform 0.18s ease;
-            transform-origin: center;
-        }
-
-        .tab.active {
-            color: var(--platinum);
-        }
-
-        .tab.active::after {
-            background: linear-gradient(90deg, var(--accent-soft), var(--accent-strong));
-            transform: scaleX(1.05);
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        /* Layout grid */
-        .grid {
-            display: grid;
-            gap: 14px;
-        }
-
-        .grid-4 {
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-        }
-
-        .grid-2 {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
-        @media (max-width: 900px) {
-            .page-header {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            .grid-4 {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-            .grid-2 {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 640px) {
-            .grid-4 {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        /* Cards */
-        .card {
-            background: radial-gradient(circle at top left, rgba(141, 153, 174, 0.08), rgba(24, 27, 37, 0.98));
-            border-radius: var(--radius-lg);
-            border: 1px solid rgba(141, 153, 174, 0.18);
-            padding: 14px 16px;
-            box-shadow: var(--shadow-soft);
-        }
-
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-
-        .card-title {
-            font-size: 13px;
-            font-weight: 600;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            color: var(--lavender-grey);
-        }
-
-        .card-meta {
-            font-size: 11px;
-            color: var(--muted);
-        }
-
-        .stat-value {
-            font-size: 26px;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            margin: 4px 0 0;
-            background: linear-gradient(135deg, var(--platinum), #e0fbfc);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-        }
-
-        .stat-subline {
-            margin-top: 4px;
-            font-size: 11px;
-            color: var(--lavender-grey);
-        }
-
-        .stat-subline span {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-            color: var(--platinum);
-        }
-
-        /* Activity list */
-        .activity-list {
-            margin: 0;
-            padding: 0;
-            list-style: none;
-            max-height: 260px;
-            overflow-y: auto;
-        }
-
-        .activity-row {
-            display: grid;
-            grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) minmax(0, 0.7fr);
-            align-items: center;
-            gap: 8px;
-            padding: 7px 0;
-            border-bottom: 1px solid rgba(141, 153, 174, 0.15);
-            font-size: 11px;
-        }
-
-        .activity-row:last-child {
-            border-bottom: none;
-        }
-
-        .activity-main {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .activity-meta {
-            color: var(--muted);
-        }
-
-        .activity-label {
-            font-weight: 500;
-        }
-
-        .badge-status {
-            display: inline-flex;
-            padding: 2px 8px;
-            border-radius: var(--radius-pill);
-            font-size: 10px;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-        }
-
-        .badge-approved {
-            color: #b9fbc0;
-            border: 1px solid rgba(112, 224, 0, 0.35);
-            background: rgba(112, 224, 0, 0.12);
-        }
-
-        .badge-pending {
-            color: #fcd5a5;
-            border: 1px solid rgba(255, 183, 3, 0.35);
-            background: rgba(255, 183, 3, 0.12);
-        }
-
-        .badge-denied {
-            color: #ffadad;
-            border: 1px solid rgba(240, 113, 103, 0.35);
-            background: rgba(240, 113, 103, 0.12);
-        }
-
-        /* Tables */
-        .table-wrapper {
-            width: 100%;
-            overflow-x: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 11px;
-        }
-
-        thead {
-            background: rgba(24, 27, 37, 0.9);
-        }
-
-        th, td {
-            padding: 7px 8px;
-            text-align: left;
-            white-space: nowrap;
-        }
-
-        th {
-            font-weight: 600;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            font-size: 11px;
-            color: var(--lavender-grey);
-            border-bottom: 1px solid rgba(141, 153, 174, 0.3);
-        }
-
-        tbody tr:nth-child(even) {
-            background: rgba(24, 27, 37, 0.9);
-        }
-
-        tbody tr:nth-child(odd) {
-            background: rgba(20, 22, 33, 0.9);
-        }
-
-        tbody tr:hover {
-            background: rgba(79, 140, 201, 0.18);
-        }
-
-        .text-right {
-            text-align: right;
-        }
-
-        .name-cell {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .name-primary {
-            font-weight: 500;
-            font-size: 11px;
-        }
-
-        .name-secondary {
-            font-size: 10px;
-            color: var(--muted);
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-        }
-
-        .role-badge {
-            display: inline-flex;
-            padding: 3px 8px;
-            border-radius: var(--radius-pill);
-            border: 1px solid rgba(141, 153, 174, 0.4);
-            margin: 2px 3px 2px 0;
-            font-size: 10px;
-            color: var(--lavender-grey);
-        }
-
-        /* Inputs */
-        .input-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .select,
-        .input {
-            border-radius: var(--radius-pill);
-            border: 1px solid rgba(141, 153, 174, 0.45);
-            background: rgba(10, 12, 20, 0.9);
-            color: var(--platinum);
-            padding: 6px 10px;
-            font-size: 11px;
-            outline: none;
-        }
-
-        .select:focus,
-        .input:focus {
-            border-color: var(--accent-soft);
-            box-shadow: 0 0 0 1px rgba(79, 140, 201, 0.6);
-        }
-
-        .input::placeholder {
-            color: rgba(141, 153, 174, 0.75);
-        }
-
-        /* Logs */
-        .log-box {
-            background: rgba(0, 0, 0, 0.75);
-            border-radius: var(--radius-md);
-            padding: 10px;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-            font-size: 11px;
-            height: 350px;
-            overflow-y: auto;
-            border: 1px solid rgba(141, 153, 174, 0.4);
-        }
-
-        .log-line {
-            padding: 2px 0;
-            border-left: 2px solid transparent;
-            padding-left: 6px;
-            color: var(--platinum);
-            word-break: break-all;
-        }
-
-        .log-line:nth-child(odd) {
-            color: var(--lavender-grey);
-        }
-
-        .log-line:hover {
-            border-left-color: var(--accent-strong);
-            background: rgba(79, 140, 201, 0.12);
-        }
-
-        /* Scrollbar */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: rgba(15, 16, 24, 0.9);
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: rgba(141, 153, 174, 0.65);
-            border-radius: 999px;
-        }
-
-        /* Utility */
-        .mono {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-        }
-
-        .text-muted {
-            color: var(--muted);
-        }
-
-        .text-small {
-            font-size: 10px;
-        }
-
-        .mt-8 {
-            margin-top: 8px;
-        }
-
-        .mt-12 {
-            margin-top: 12px;
-        }
-
-        .inline-spinner {
-            width: 12px;
-            height: 12px;
-            border-radius: 999px;
-            border: 2px solid var(--accent-strong);
-            border-top-color: transparent;
-            animation: spin 0.6s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* Chart container fixed heights to prevent reflow loops */
-        .chart-container {
-            position: relative;
-            height: 200px;
-            width: 100%;
-        }
-        .chart-container canvas {
-            display: block;
-            width: 100% !important;
-            height: 100% !important;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RECREP · Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<style>
+:root {
+  --bg:       #05070e;
+  --s0:       #080c17;
+  --s1:       #0d1220;
+  --s2:       #121828;
+  --s3:       #182030;
+  --border:   #1e2d44;
+  --border2:  #253548;
+  --cyan:     #00d4ff;
+  --cyan-dim: #0099bb;
+  --amber:    #f5a623;
+  --green:    #00e5a0;
+  --red:      #ff4757;
+  --purple:   #9d7ef5;
+  --text:     #d8e4f0;
+  --text-2:   #7a99b8;
+  --text-3:   #3d5670;
+  --font:     'Oxanium', sans-serif;
+  --mono:     'JetBrains Mono', monospace;
+  --r:        6px;
+  --r2:       10px;
+  --transition: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.015) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Layout ── */
+.shell { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 0 20px 40px; }
+
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 0 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-mark {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, var(--cyan), var(--purple));
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 800;
+  color: #000;
+  letter-spacing: -1px;
+  flex-shrink: 0;
+}
+
+.logo-text { font-size: 18px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.logo-sub { font-size: 10px; color: var(--text-3); letter-spacing: 0.2em; text-transform: uppercase; margin-top: 1px; font-family: var(--mono); }
+
+.header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+.status-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  background: var(--s1);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 8px var(--red);
+  transition: background var(--transition), box-shadow var(--transition);
+}
+.status-dot.on { background: var(--green); box-shadow: 0 0 10px var(--green); }
+
+.status-label { color: var(--text-2); }
+.status-val { color: var(--text); font-weight: 500; }
+
+.uptime-chip {
+  padding: 7px 14px;
+  background: var(--s1);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
+}
+.uptime-chip span { color: var(--cyan); }
+
+/* ── Controls ── */
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  background: var(--s1);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  margin-bottom: 20px;
+}
+
+.btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all var(--transition);
+  background: var(--s2);
+  color: var(--text-2);
+  border-color: var(--border);
+}
+
+.btn:hover { color: var(--text); border-color: var(--border2); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+
+.btn-cyan { background: rgba(0,212,255,0.1); border-color: rgba(0,212,255,0.35); color: var(--cyan); }
+.btn-cyan:hover { background: rgba(0,212,255,0.18); border-color: var(--cyan); box-shadow: 0 0 20px rgba(0,212,255,0.2); }
+
+.btn-red { background: rgba(255,71,87,0.1); border-color: rgba(255,71,87,0.35); color: var(--red); }
+.btn-red:hover { background: rgba(255,71,87,0.18); border-color: var(--red); }
+
+.btn-amber { background: rgba(245,166,35,0.08); border-color: rgba(245,166,35,0.25); color: var(--amber); }
+.btn-amber:hover { background: rgba(245,166,35,0.14); border-color: var(--amber); }
+
+.ctrl-msg {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
+  min-height: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Tabs ── */
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+
+.tab {
+  padding: 10px 18px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  cursor: pointer;
+  position: relative;
+  transition: color var(--transition);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.tab:hover { color: var(--text-2); }
+.tab.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* ── Grid ── */
+.g2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.g4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.mt { margin-top: 14px; }
+
+@media (max-width: 960px) {
+  .g4 { grid-template-columns: repeat(2, 1fr); }
+  .header { flex-wrap: wrap; }
+}
+@media (max-width: 600px) {
+  .g4 { grid-template-columns: 1fr; }
+  .g2 { grid-template-columns: 1fr; }
+}
+
+/* ── Card ── */
+.card {
+  background: var(--s1);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color var(--transition);
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0,212,255,0.25), transparent);
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.card:hover::before { opacity: 1; }
+.card:hover { border-color: var(--border2); }
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.card-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.card-sub { font-size: 10px; color: var(--text-3); margin-top: 2px; }
+
+/* ── Stat cards ── */
+.stat-num {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  line-height: 1;
+  margin: 4px 0 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-detail {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  line-height: 1.6;
+}
+
+.stat-detail b { color: var(--text-2); font-weight: 500; }
+
+/* ── Select / Input ── */
+.sel, .inp {
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 6px 10px;
+  outline: none;
+  transition: border-color var(--transition);
+}
+.sel:focus, .inp:focus { border-color: var(--cyan-dim); }
+.inp::placeholder { color: var(--text-3); }
+.sel option { background: var(--s2); }
+
+/* ── Row of inputs ── */
+.row-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* ── Chart containers ── */
+.chart-wrap { position: relative; }
+.chart-wrap canvas { display: block; width: 100% !important; }
+
+/* ── Activity list ── */
+.activity-list { list-style: none; }
+
+.act-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(30,45,68,0.7);
+}
+.act-item:last-child { border-bottom: none; }
+.act-name { font-weight: 500; font-size: 12px; }
+.act-meta { font-family: var(--mono); font-size: 10px; color: var(--text-3); margin-top: 2px; }
+.act-user { font-family: var(--mono); font-size: 10px; color: var(--text-2); }
+
+/* ── Status badges ── */
+.badge {
+  display: inline-flex;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.badge-ok   { background: rgba(0,229,160,0.1); border: 1px solid rgba(0,229,160,0.3); color: var(--green); }
+.badge-wait { background: rgba(245,166,35,0.1); border: 1px solid rgba(245,166,35,0.3); color: var(--amber); }
+.badge-no   { background: rgba(255,71,87,0.1); border: 1px solid rgba(255,71,87,0.3); color: var(--red); }
+
+/* ── Tables ── */
+.tbl-wrap { overflow-x: auto; }
+
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+
+thead tr { background: var(--s0); }
+th {
+  padding: 9px 10px;
+  text-align: left;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+th.r { text-align: right; }
+td {
+  padding: 8px 10px;
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(30,45,68,0.5);
+}
+td.r { text-align: right; font-family: var(--mono); font-size: 11px; }
+
+tbody tr { cursor: pointer; transition: background var(--transition); }
+tbody tr:hover { background: rgba(0,212,255,0.04); }
+tbody tr:last-child td { border-bottom: none; }
+
+.name-cell .n-main { font-weight: 500; font-size: 12px; }
+.name-cell .n-sub { font-family: var(--mono); font-size: 10px; color: var(--text-3); margin-top: 1px; }
+
+.rank-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  text-align: right;
+}
+.rank-num.gold   { color: #ffd700; }
+.rank-num.silver { color: #c0c0c0; }
+.rank-num.bronze { color: #cd7f32; }
+
+.role-tag {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: var(--r);
+  border: 1px solid var(--border2);
+  font-size: 10px;
+  color: var(--text-2);
+  margin: 1px 2px 1px 0;
+}
+
+/* ── Log box ── */
+.log-box {
+  background: var(--s0);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 12px;
+  height: 400px;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.log-line {
+  padding: 1px 6px;
+  border-left: 2px solid transparent;
+  border-radius: 2px;
+  color: var(--text-2);
+  word-break: break-all;
+  transition: background var(--transition);
+}
+.log-line:hover { background: rgba(0,212,255,0.05); border-left-color: var(--cyan); }
+.log-line.err { color: var(--red); }
+.log-line.warn { color: var(--amber); }
+.log-line.info { color: var(--text); }
+
+/* ── Modal ── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--s1);
+  border: 1px solid var(--border2);
+  border-radius: 14px;
+  width: 90%;
+  max-width: 680px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+}
+
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.modal-title { font-size: 13px; font-weight: 600; }
+.modal-close-btn {
+  background: none; border: none;
+  color: var(--text-3); font-size: 20px;
+  cursor: pointer; line-height: 1;
+  transition: color var(--transition);
+  padding: 0 4px;
+}
+.modal-close-btn:hover { color: var(--text); }
+
+.modal-body { padding: 16px 22px; overflow-y: auto; flex: 1; }
+
+.modal-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.count-chip {
+  padding: 3px 10px;
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-2);
+}
+.count-chip b { color: var(--cyan); }
+
+.hist-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(30,45,68,0.6);
+}
+.hist-item:last-child { border-bottom: none; }
+.hist-name { font-weight: 500; font-size: 12px; }
+.hist-date { font-family: var(--mono); font-size: 10px; color: var(--text-3); margin-top: 2px; }
+.hist-actions { display: flex; align-items: center; gap: 8px; }
+
+.view-link {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--cyan-dim);
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color var(--transition);
+}
+.view-link:hover { color: var(--cyan); }
+
+/* ── Spinner ── */
+.spin {
+  width: 14px; height: 14px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--cyan);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--s0); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+/* ── Animations ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.panel.active { animation: fadeUp 0.22s ease; }
+</style>
 </head>
 <body>
-    <div class="page-frame">
-        <header class="page-header">
-            <div class="page-title-block">
-                <h1>Recrep Control</h1>
-                <span>Bot orchestration, staff performance, and form analytics.</span>
-            </div>
-            <div class="status-block">
-                <div class="status-pill">
-                    <div id="statusDot" class="status-dot"></div>
-                    <div>
-                        <div class="status-label">Status</div>
-                        <div id="statusText" class="status-value">Offline</div>
-                    </div>
-                </div>
-                <div class="badge-pill">
-                    Uptime
-                    <span id="uptimeText">–</span>
-                </div>
-                <button id="refreshAllBtn" class="btn btn-ghost">Refresh Data</button>
-            </div>
-        </header>
 
-        <section class="control-strip">
-            <div class="control-buttons">
-                <button id="startBtn" class="btn btn-primary">Start</button>
-                <button id="restartBtn" class="btn">Restart</button>
-                <button id="stopBtn" class="btn btn-danger">Stop</button>
-                <button id="resetBtn" class="btn btn-ghost">Reset DB + S3</button>
-            </div>
-            <div id="controlMsg" class="control-message"></div>
-        </section>
+<div class="shell">
 
-        <nav class="tab-row">
-            <div class="tab active" data-tab="overview">Overview</div>
-            <div class="tab" data-tab="leaderboard">Leaderboard</div>
-            <div class="tab" data-tab="staff">Staff Directory</div>
-            <div class="tab" data-tab="logs">Live Logs</div>
-        </nav>
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">
+      <div class="logo-mark">RC</div>
+      <div>
+        <div class="logo-text">Recrep</div>
+        <div class="logo-sub">Control Panel</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="status-chip">
+        <div id="statusDot" class="status-dot"></div>
+        <span class="status-label">Bot&nbsp;</span>
+        <span id="statusVal" class="status-val">Offline</span>
+      </div>
+      <div class="uptime-chip">Uptime <span id="uptimeVal">—</span></div>
+      <button class="btn btn-cyan" id="refreshBtn">⟳ Refresh</button>
+    </div>
+  </header>
 
-        <section id="overview" class="tab-content active">
-            <div class="grid grid-4">
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-title">Approved Forms</div>
-                    </div>
-                    <div id="approvedTotal" class="stat-value">0</div>
-                    <div id="approvedSubline" class="stat-subline text-small text-muted">–</div>
-                </div>
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-title">Pending Forms</div>
-                    </div>
-                    <div id="pendingTotal" class="stat-value">0</div>
-                    <div id="pendingSubline" class="stat-subline text-small text-muted">–</div>
-                </div>
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-title">Total Reputation</div>
-                    </div>
-                    <div id="totalRep" class="stat-value">0</div>
-                    <div class="stat-subline text-small text-muted">Sum of all staff reputation.</div>
-                </div>
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-title">Staff Count</div>
-                    </div>
-                    <div id="staffCount" class="stat-value">0</div>
-                    <div class="stat-subline text-small text-muted">Active staff members in the system.</div>
-                </div>
-            </div>
+  <!-- Controls -->
+  <div class="controls">
+    <div class="btn-group">
+      <button class="btn btn-cyan" id="startBtn">▶ Start</button>
+      <button class="btn"          id="restartBtn">↺ Restart</button>
+      <button class="btn btn-red"  id="stopBtn">■ Stop</button>
+      <button class="btn btn-amber" id="resetBtn">⚠ Reset DB + S3</button>
+    </div>
+    <div id="ctrlMsg" class="ctrl-msg"></div>
+  </div>
 
-            <div class="grid grid-2 mt-12">
-                <div class="card">
-                    <div class="card-header">
-                        <div>
-                            <div class="card-title">Activity Over Time</div>
-                            <div class="card-meta">Recruitments, forms, and reputation across time buckets.</div>
-                        </div>
-                        <div class="input-row">
-                            <button class="btn btn-ghost text-small" data-granularity="daily">Daily</button>
-                            <button class="btn btn-ghost text-small" data-granularity="weekly">Weekly</button>
-                            <button class="btn btn-ghost text-small" data-granularity="monthly">Monthly</button>
-                        </div>
-                    </div>
-                    <div class="chart-container">
-                        <canvas id="activityChart"></canvas>
-                    </div>
-                </div>
+  <!-- Tabs -->
+  <nav class="tabs">
+    <div class="tab active" data-panel="overview">Overview</div>
+    <div class="tab" data-panel="leaderboard">Leaderboard</div>
+    <div class="tab" data-panel="staff">Staff</div>
+    <div class="tab" data-panel="logs">Live Logs</div>
+  </nav>
 
-                <div class="card">
-                    <div class="card-header">
-                        <div>
-                            <div class="card-title">Form Distribution</div>
-                            <div class="card-meta">Who is contributing which forms.</div>
-                        </div>
-                        <select id="distCategory" class="select text-small">
-                            <option value="recruitment">Recruitments</option>
-                            <option value="progress_report">Progress Reports</option>
-                            <option value="progress_help">Progress Help</option>
-                            <option value="purchase_invoice">Invoices</option>
-                            <option value="demolition_report">Demolitions</option>
-                            <option value="eviction_report">Evictions</option>
-                            <option value="scroll_completion">Scrolls</option>
-                        </select>
-                    </div>
-                    <div class="chart-container">
-                        <canvas id="distributionChart"></canvas>
-                    </div>
-                </div>
-            </div>
+  <!-- ── OVERVIEW ── -->
+  <div id="overview" class="panel active">
 
-            <div class="card mt-12">
-                <div class="card-header">
-                    <div class="card-title">Recent Activity</div>
-                    <div class="card-meta">Latest approved and pending forms across all categories.</div>
-                </div>
-                <ul id="activityList" class="activity-list"></ul>
-            </div>
-        </section>
-
-        <section id="leaderboard" class="tab-content">
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">Leaderboard</div>
-                    <div class="card-meta">Rank staff by category and period.</div>
-                </div>
-                <div class="input-row mt-8">
-                    <select id="lbCat" class="select">
-                        <option value="reputation">Reputation</option>
-                        <option value="recruitment">Recruitments</option>
-                        <option value="progress_report">Progress Reports</option>
-                        <option value="progress_help">Progress Help</option>
-                        <option value="purchase_invoice">Invoices</option>
-                        <option value="demolition_report">Demolitions</option>
-                        <option value="eviction_report">Evictions</option>
-                        <option value="scroll_completion">Scrolls</option>
-                    </select>
-                    <select id="lbPeriod" class="select">
-                        <option value="weekly">Weekly</option>
-                        <option value="biweekly">Bi-weekly</option>
-                        <option value="monthly">Monthly</option>
-                        <option value="all">All Time</option>
-                    </select>
-                    <input id="lbSearch" class="input" placeholder="Search user label or id..." />
-                    <button id="lbFilter" class="btn btn-ghost text-small">Filter</button>
-                </div>
-                <div class="table-wrapper mt-12">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th style="width:48px;">Rank</th>
-                                <th>Name</th>
-                                <th class="text-right">Score</th>
-                            </tr>
-                        </thead>
-                        <tbody id="leaderboardBody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <section id="staff" class="tab-content">
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">Staff Directory</div>
-                    <div class="card-meta">Per-staff breakdown across all categories.</div>
-                </div>
-                <div class="table-wrapper mt-8">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th class="text-right">Rep</th>
-                                <th class="text-right">Rec</th>
-                                <th class="text-right">Prog</th>
-                                <th class="text-right">Help</th>
-                                <th class="text-right">Inv</th>
-                                <th class="text-right">Demo</th>
-                                <th class="text-right">Evict</th>
-                                <th class="text-right">Scroll</th>
-                                <th>Roles</th>
-                            </tr>
-                        </thead>
-                        <tbody id="staffBody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <section id="logs" class="tab-content">
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">Live Console</div>
-                    <div class="card-meta">Streaming logs from the running bot process.</div>
-                </div>
-                <div id="logContainer" class="log-box"></div>
-            </div>
-        </section>
+    <!-- Stat row -->
+    <div class="g4">
+      <div class="card">
+        <div class="card-title">Approved Forms</div>
+        <div id="approvedNum" class="stat-num">0</div>
+        <div id="approvedDetail" class="stat-detail">—</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Pending Forms</div>
+        <div id="pendingNum" class="stat-num">0</div>
+        <div id="pendingDetail" class="stat-detail">—</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Total Reputation</div>
+        <div id="repNum" class="stat-num">0</div>
+        <div class="stat-detail">Cumulative staff reputation</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Staff Members</div>
+        <div id="staffNum" class="stat-num">0</div>
+        <div class="stat-detail">Active in the system</div>
+      </div>
     </div>
 
-    <script>
-        const statusDot = document.getElementById("statusDot");
-        const statusText = document.getElementById("statusText");
-        const uptimeText = document.getElementById("uptimeText");
-        const controlMsg = document.getElementById("controlMsg");
+    <!-- Charts -->
+    <div class="g2 mt">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Activity Over Time</div>
+            <div class="card-sub">Forms & reputation across time buckets</div>
+          </div>
+          <div class="btn-group">
+            <button class="btn" style="padding:4px 10px;font-size:10px;" data-gran="daily">Daily</button>
+            <button class="btn" style="padding:4px 10px;font-size:10px;" data-gran="weekly">Weekly</button>
+            <button class="btn" style="padding:4px 10px;font-size:10px;" data-gran="monthly">Monthly</button>
+          </div>
+        </div>
+        <div class="chart-wrap" style="height:220px;">
+          <canvas id="actChart"></canvas>
+        </div>
+      </div>
 
-        const approvedTotal = document.getElementById("approvedTotal");
-        const approvedSubline = document.getElementById("approvedSubline");
-        const pendingTotal = document.getElementById("pendingTotal");
-        const pendingSubline = document.getElementById("pendingSubline");
-        const totalRep = document.getElementById("totalRep");
-        const staffCount = document.getElementById("staffCount");
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Form Distribution</div>
+            <div class="card-sub">Top contributors per category</div>
+          </div>
+          <select id="distSel" class="sel" style="font-size:11px;">
+            <option value="recruitment">Recruitments</option>
+            <option value="progress_report">Progress Reports</option>
+            <option value="progress_help">Progress Help</option>
+            <option value="purchase_invoice">Invoices</option>
+            <option value="demolition_report">Demolitions</option>
+            <option value="eviction_report">Evictions</option>
+            <option value="scroll_completion">Scrolls</option>
+          </select>
+        </div>
+        <div style="height:220px;overflow-y:auto;">
+          <div id="distInner" style="min-height:100%;">
+            <canvas id="distChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
 
-        const activityList = document.getElementById("activityList");
-        const leaderboardBody = document.getElementById("leaderboardBody");
-        const staffBody = document.getElementById("staffBody");
-        const logContainer = document.getElementById("logContainer");
+    <!-- Recent activity -->
+    <div class="card mt">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Recent Activity</div>
+          <div class="card-sub">Latest form submissions across all categories</div>
+        </div>
+      </div>
+      <ul id="actList" class="activity-list"></ul>
+    </div>
+  </div>
 
-        const distCategorySelect = document.getElementById("distCategory");
-        const lbCat = document.getElementById("lbCat");
-        const lbPeriod = document.getElementById("lbPeriod");
-        const lbSearch = document.getElementById("lbSearch");
-        const lbFilter = document.getElementById("lbFilter");
-        const refreshAllBtn = document.getElementById("refreshAllBtn");
+  <!-- ── LEADERBOARD ── -->
+  <div id="leaderboard" class="panel">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Leaderboard</div>
+          <div class="card-sub">Staff rankings by category and period</div>
+        </div>
+      </div>
+      <div class="row-filters" style="margin-bottom:14px;">
+        <select id="lbCat" class="sel">
+          <option value="reputation">Reputation</option>
+          <option value="recruitment">Recruitments</option>
+          <option value="progress_report">Progress Reports</option>
+          <option value="progress_help">Progress Help</option>
+          <option value="purchase_invoice">Invoices</option>
+          <option value="demolition_report">Demolitions</option>
+          <option value="eviction_report">Evictions</option>
+          <option value="scroll_completion">Scrolls</option>
+        </select>
+        <select id="lbPeriod" class="sel">
+          <option value="weekly">Weekly</option>
+          <option value="biweekly">Bi-weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="all">All Time</option>
+        </select>
+        <input id="lbSearch" class="inp" placeholder="Search by name or ID…" style="flex:1;min-width:160px;">
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:50px;" class="r">Rank</th>
+              <th>Name</th>
+              <th class="r">Score</th>
+            </tr>
+          </thead>
+          <tbody id="lbBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 
-        let staffData = [];
-        let leaderboardRows = [];
-        let nameMap = {};
-        let currentGranularity = "weekly";
+  <!-- ── STAFF ── -->
+  <div id="staff" class="panel">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Staff Directory</div>
+          <div class="card-sub">Click any row to view submitted form history</div>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th class="r">Rep</th>
+              <th class="r">Rec</th>
+              <th class="r">Prog</th>
+              <th class="r">Help</th>
+              <th class="r">Inv</th>
+              <th class="r">Demo</th>
+              <th class="r">Evict</th>
+              <th class="r">Scroll</th>
+              <th class="r">Appr</th>
+              <th>Roles</th>
+            </tr>
+          </thead>
+          <tbody id="staffBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 
-        const activityCtx = document.getElementById("activityChart").getContext("2d");
-        const distCtx = document.getElementById("distributionChart").getContext("2d");
-        let activityChart = null;
-        let distributionChart = null;
-        let resizeScheduled = false;
+  <!-- ── LOGS ── -->
+  <div id="logs" class="panel">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Live Console</div>
+          <div class="card-sub">Real-time output from the bot process</div>
+        </div>
+        <button class="btn" id="clearLogsBtn" style="font-size:10px;padding:4px 10px;">Clear</button>
+      </div>
+      <div id="logBox" class="log-box"></div>
+    </div>
+  </div>
 
-        const activityColors = {
-            recruitment: "#8bbdf2",
-            progress_report: "#f3c969",
-            progress_help: "#efb0ff",
-            purchase_invoice: "#9de7d7",
-            demolition_report: "#f28f8f",
-            eviction_report: "#ffafcc",
-            scroll_completion: "#a0c4ff",
-            reputation: "#ffffff"
-        };
+</div>
 
-        function formatNumber(n) {
-            if (n == null) return "0";
-            return n.toLocaleString("en-US");
+<!-- Modal -->
+<div id="histOverlay" class="overlay" style="display:none;">
+  <div class="modal">
+    <div class="modal-head">
+      <div id="modalTitle" class="modal-title">User History</div>
+      <button id="modalClose" class="modal-close-btn">&times;</button>
+    </div>
+    <div id="modalBody" class="modal-body">
+      <div style="display:flex;align-items:center;gap:10px;color:var(--text-2);">
+        <div class="spin"></div> Loading…
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Utilities ──────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const fmt = n => (n ?? 0).toLocaleString('en-US');
+const TABLE_LABELS = {
+  recruitment:'Rec', progress_report:'Prog', purchase_invoice:'Inv',
+  demolition_report:'Demo', eviction_report:'Evict', scroll_completion:'Scroll'
+};
+const COLORS = {
+  recruitment:'#22d3ee', progress_report:'#f59e0b', progress_help:'#a78bfa',
+  purchase_invoice:'#34d399', demolition_report:'#f87171', eviction_report:'#fb7185',
+  scroll_completion:'#60a5fa', reputation:'#ffffff'
+};
+
+// ── State ──────────────────────────────────────────────────────────────────
+let staffData = [], leaderboardRows = [], nameMap = {}, currentGran = 'weekly';
+let actChart = null, distChart = null;
+
+// ── Status ─────────────────────────────────────────────────────────────────
+async function loadStatus() {
+  const d = await apiFetch('/api/status');
+  if (!d) return;
+  const dot = $('statusDot'), val = $('statusVal'), up = $('uptimeVal');
+  if (d.running) {
+    dot.classList.add('on');
+    val.textContent = `Online · PID ${d.pid}`;
+    up.textContent = d.uptime || '—';
+  } else {
+    dot.classList.remove('on');
+    val.textContent = 'Offline';
+    up.textContent = '—';
+  }
+}
+
+// ── Overview ───────────────────────────────────────────────────────────────
+async function loadOverview() {
+  const d = await apiFetch('/api/overview');
+  if (!d || d.error) return;
+  const t = d.totals || {};
+  $('approvedNum').textContent = fmt(t.approved_total);
+  $('pendingNum').textContent = fmt(t.pending_total);
+  $('repNum').textContent = fmt(t.reputation_total);
+  $('staffNum').textContent = fmt(t.staff_total);
+
+  const ab = d.approved_breakdown || {}, pb = d.pending_breakdown || {};
+  const buildDetail = (src) => Object.entries(TABLE_LABELS)
+    .map(([k,l]) => `${l} <b>${fmt(src[k]||0)}</b>`).join(' · ');
+  $('approvedDetail').innerHTML = buildDetail(ab);
+  $('pendingDetail').innerHTML = buildDetail(pb);
+}
+
+// ── Activity list ──────────────────────────────────────────────────────────
+async function loadActivity() {
+  const data = await apiFetch('/api/activity');
+  if (!data) return;
+  const ul = $('actList');
+  ul.innerHTML = '';
+  if (!data.length) {
+    ul.innerHTML = '<li style="color:var(--text-3);padding:10px 0;font-size:11px;">No recent activity.</li>';
+    return;
+  }
+  for (const a of data) {
+    const li = document.createElement('li');
+    li.className = 'act-item';
+    const d = new Date(a.submitted_at);
+    const sc = a.status === 'approved' ? 'badge-ok' : a.status === 'pending' ? 'badge-wait' : 'badge-no';
+    li.innerHTML = `
+      <div>
+        <div class="act-name">${(a.table||'').replace(/_/g,' ').toUpperCase()} #${a.id}</div>
+        <div class="act-meta">${d.toLocaleString()}</div>
+      </div>
+      <div class="act-user">${a.submitted_by}</div>
+      <div><span class="badge ${sc}">${a.status}</span></div>`;
+    ul.appendChild(li);
+  }
+}
+
+// ── Time series chart ──────────────────────────────────────────────────────
+async function loadTimeseries(gran) {
+  const d = await apiFetch(`/api/activity_timeseries?granularity=${gran}`);
+  if (!d || d.error) return;
+  const labels = d.labels || [], series = d.series || {};
+  const cfg = [
+    {k:'recruitment',l:'Recruitments'},{k:'progress_report',l:'Progress'},{k:'progress_help',l:'Help'},
+    {k:'purchase_invoice',l:'Invoices'},{k:'demolition_report',l:'Demolitions'},
+    {k:'eviction_report',l:'Evictions'},{k:'scroll_completion',l:'Scrolls'},{k:'reputation',l:'Reputation'}
+  ];
+  const datasets = cfg.map(c => ({
+    label: c.l,
+    data: (series[c.k]||[]).map(x=>x||0),
+    borderColor: COLORS[c.k],
+    backgroundColor: COLORS[c.k] + '22',
+    tension: 0.4,
+    fill: c.k !== 'reputation',
+    borderWidth: c.k === 'reputation' ? 2 : 1.5,
+    pointRadius: 2, pointHoverRadius: 4
+  }));
+  const ctx = $('actChart').getContext('2d');
+  const opts = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color:'#7a99b8', font:{size:10, family:'JetBrains Mono'}, boxWidth:10 } }
+    },
+    scales: {
+      x: { grid:{color:'rgba(30,45,68,0.7)'}, ticks:{color:'#7a99b8', font:{size:10}} },
+      y: { beginAtZero:true, grid:{color:'rgba(30,45,68,0.7)'}, ticks:{color:'#7a99b8', font:{size:10}} }
+    }
+  };
+  if (!actChart) {
+    actChart = new Chart(ctx, {type:'line', data:{labels, datasets}, options:opts});
+  } else {
+    actChart.data.labels = labels;
+    actChart.data.datasets = datasets;
+    actChart.update();
+  }
+}
+
+// ── Distribution chart ─────────────────────────────────────────────────────
+function updateDistChart() {
+  const cat = $('distSel').value;
+  if (!staffData.length) return;
+  const sorted = [...staffData].sort((a,b)=>(b[cat]||0)-(a[cat]||0)).slice(0,14);
+  const labels = sorted.map(s => s.label || `User ${s.discord_id}`);
+  const values = sorted.map(s => s[cat] || 0);
+  const inner = $('distInner');
+  inner.style.height = Math.max(220, labels.length * 28) + 'px';
+  const ctx = $('distChart').getContext('2d');
+  if (!distChart) {
+    distChart = new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets:[{
+        label:'Forms', data:values,
+        backgroundColor: sorted.map((_,i) => `hsl(${190 + i*12},70%,55%)`),
+        borderRadius: 3, barPercentage:0.75
+      }]},
+      options: {
+        indexAxis:'y', responsive:true, maintainAspectRatio:false,
+        plugins: {
+          legend:{display:false},
+          tooltip:{callbacks:{label:c=>`${c.raw} forms`}}
+        },
+        scales: {
+          x: { beginAtZero:true, grid:{color:'rgba(30,45,68,0.7)'}, ticks:{color:'#7a99b8',font:{size:10}} },
+          y: { grid:{display:false}, ticks:{color:'#d8e4f0',font:{size:11},autoSkip:false,maxRotation:0} }
         }
+      }
+    });
+  } else {
+    distChart.data.labels = labels;
+    distChart.data.datasets[0].data = values;
+    distChart.data.datasets[0].backgroundColor = sorted.map((_,i) => `hsl(${190+i*12},70%,55%)`);
+    distChart.update();
+  }
+}
 
-        async function fetchStatus() {
-            try {
-                const res = await fetch("/api/status");
-                const data = await res.json();
-                if (data.running) {
-                    statusDot.classList.add("online");
-                    statusText.textContent = `Online (PID ${data.pid})`;
-                    uptimeText.textContent = data.uptime || "–";
-                } else {
-                    statusDot.classList.remove("online");
-                    statusText.textContent = "Offline";
-                    uptimeText.textContent = "–";
-                }
-            } catch (e) {
-                console.error(e);
-            }
-        }
+// ── Staff directory ────────────────────────────────────────────────────────
+async function loadStaff() {
+  const d = await apiFetch('/api/staff');
+  if (!d || d.error) return;
+  staffData = d.staff || [];
+  nameMap = {};
+  for (const s of staffData) nameMap[s.discord_id] = s.label || `User ${s.discord_id}`;
+  renderStaff();
+  updateDistChart();
+}
 
-        async function fetchOverview() {
-            try {
-                const res = await fetch("/api/overview");
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
+function renderStaff() {
+  const tbody = $('staffBody');
+  tbody.innerHTML = '';
+  if (!staffData.length) {
+    tbody.innerHTML = '<tr><td colspan="11" style="color:var(--text-3);padding:14px 10px;">No staff records.</td></tr>';
+    return;
+  }
+  for (const s of staffData) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <div class="name-cell">
+          <div class="n-main">${s.label}</div>
+          <div class="n-sub">${s.discord_id}</div>
+        </div>
+      </td>
+      <td class="r">${fmt(s.reputation)}</td>
+      <td class="r">${fmt(s.recruitment)}</td>
+      <td class="r">${fmt(s.progress_report)}</td>
+      <td class="r">${fmt(s.progress_help)}</td>
+      <td class="r">${fmt(s.purchase_invoice)}</td>
+      <td class="r">${fmt(s.demolition_report)}</td>
+      <td class="r">${fmt(s.eviction_report)}</td>
+      <td class="r">${fmt(s.scroll_completion)}</td>
+      <td class="r">${fmt(s.approvals)}</td>
+      <td>${(s.roles||[]).map(r=>`<span class="role-tag">${r}</span>`).join('')}</td>`;
+    // discord_id is already a string from the server – no precision loss
+    tr.addEventListener('click', () => openUserHistory(s.discord_id, s.label));
+    tbody.appendChild(tr);
+  }
+}
 
-                const totals = data.totals || {};
-                const approved = data.approved_breakdown || {};
-                const pending = data.pending_breakdown || {};
+// ── User history modal ─────────────────────────────────────────────────────
+// BUG FIX: discord_id is a string throughout JS. No parseInt() anywhere.
+// The server returns it as a string; we pass it directly in the URL.
+async function openUserHistory(discordId, label) {
+  $('modalTitle').textContent = `History · ${label}`;
+  $('modalBody').innerHTML = `<div style="display:flex;align-items:center;gap:10px;color:var(--text-2);"><div class="spin"></div> Loading…</div>`;
+  $('histOverlay').style.display = 'flex';
 
-                approvedTotal.textContent = formatNumber(totals.approved_total || 0);
-                pendingTotal.textContent = formatNumber(totals.pending_total || 0);
-                totalRep.textContent = formatNumber(totals.reputation_total || 0);
-                staffCount.textContent = formatNumber(totals.staff_total || 0);
+  const d = await apiFetch(`/api/user/${discordId}/history`);
+  if (!d) { $('modalBody').innerHTML = `<p style="color:var(--red);">Failed to load.</p>`; return; }
+  if (d.error) { $('modalBody').innerHTML = `<p style="color:var(--red);">Error: ${d.error}</p>`; return; }
 
-                const partsApproved = [];
-                const mapLabels = {
-                    recruitment: "Rec",
-                    progress_report: "Prog",
-                    purchase_invoice: "Inv",
-                    demolition_report: "Demo",
-                    eviction_report: "Evict",
-                    scroll_completion: "Scroll"
-                };
-                for (const key of Object.keys(mapLabels)) {
-                    const v = approved[key] || 0;
-                    partsApproved.push(`${mapLabels[key]} <span>${formatNumber(v)}</span>`);
-                }
-                approvedSubline.innerHTML = partsApproved.join(" · ");
+  const counts = d.counts || {}, history = d.history || [];
 
-                const partsPending = [];
-                for (const key of Object.keys(mapLabels)) {
-                    const v = pending[key] || 0;
-                    partsPending.push(`${mapLabels[key]} <span>${formatNumber(v)}</span>`);
-                }
-                pendingSubline.innerHTML = partsPending.join(" · ");
-            } catch (e) {
-                console.error(e);
-            }
-        }
+  // Count chips
+  let html = `<div class="modal-counts">` +
+    Object.entries(counts).map(([t,c]) =>
+      `<span class="count-chip">${t.replace(/_/g,' ')} <b>${c}</b></span>`
+    ).join('') + `</div>`;
 
-        async function fetchActivityList() {
-            try {
-                const res = await fetch("/api/activity");
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
-                activityList.innerHTML = "";
+  if (!history.length) {
+    html += `<p style="color:var(--text-3);font-size:12px;">No submitted forms found for this user.</p>`;
+  } else {
+    for (const item of history) {
+      const dt = new Date(item.submitted_at);
+      const sc = item.status==='approved'?'badge-ok':item.status==='pending'?'badge-wait':'badge-no';
+      html += `<div class="hist-item">
+        <div>
+          <div class="hist-name">${item.table.replace(/_/g,' ').toUpperCase()} #${item.id}</div>
+          <div class="hist-date">${dt.toLocaleString()}</div>
+        </div>
+        <div class="hist-actions">
+          <span class="badge ${sc}">${item.status}</span>
+          <span class="view-link" data-table="${item.table}" data-id="${item.id}">View →</span>
+        </div>
+      </div>`;
+    }
+  }
+  $('modalBody').innerHTML = html;
 
-                if (!data.length) {
-                    activityList.innerHTML = "<li class='text-small text-muted'>No recent activity.</li>";
-                    return;
-                }
+  document.querySelectorAll('.view-link').forEach(el => {
+    el.addEventListener('click', async e => {
+      e.stopPropagation();
+      const r = await apiFetch(`/api/form/${el.dataset.table}/${el.dataset.id}`);
+      if (r) alert(JSON.stringify(r, null, 2));
+    });
+  });
+}
 
-                for (const act of data) {
-                    const li = document.createElement("li");
-                    li.className = "activity-row";
-                    const date = new Date(act.submitted_at);
-                    const status = act.status || "";
-                    let statusClass = "badge-denied";
-                    if (status === "approved") statusClass = "badge-approved";
-                    if (status === "pending") statusClass = "badge-pending";
+// ── Leaderboard ────────────────────────────────────────────────────────────
+async function loadLeaderboard() {
+  const cat = $('lbCat').value, period = $('lbPeriod').value;
+  const d = await apiFetch(`/api/leaderboard/${cat}/${period}`);
+  if (!d) return;
+  leaderboardRows = d;
+  renderLeaderboard();
+}
 
-                    li.innerHTML = `
-                        <div class="activity-main">
-                            <div class="activity-label">${(act.table || "").replace(/_/g, " ").toUpperCase()} #${act.id}</div>
-                            <div class="activity-meta">${date.toLocaleString()}</div>
-                        </div>
-                        <div class="text-muted mono">By ${act.submitted_by}</div>
-                        <div class="text-right">
-                            <span class="badge-status ${statusClass}">${status || "unknown"}</span>
-                        </div>
-                    `;
-                    activityList.appendChild(li);
-                }
-            } catch (e) {
-                console.error(e);
-            }
-        }
+function renderLeaderboard() {
+  const tbody = $('lbBody');
+  tbody.innerHTML = '';
+  if (!leaderboardRows.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="color:var(--text-3);padding:14px;">No data.</td></tr>';
+    return;
+  }
+  const q = ($('lbSearch').value||'').toLowerCase();
+  let rank = 1;
+  for (const row of leaderboardRows) {
+    const id = String(row.discord_id||'');
+    const label = nameMap[id] || `User ${id}`;
+    if (q && !(label+' '+id).toLowerCase().includes(q)) continue;
+    const val = row.points ?? row.count ?? 0;
+    const rankClass = rank===1?'gold':rank===2?'silver':rank===3?'bronze':'';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="rank-num ${rankClass}">#${rank}</td>
+      <td><div class="name-cell"><div class="n-main">${label}</div><div class="n-sub">${id}</div></div></td>
+      <td class="r">${fmt(val)}</td>`;
+    tbody.appendChild(tr);
+    rank++;
+  }
+  if (!tbody.children.length)
+    tbody.innerHTML = '<tr><td colspan="3" style="color:var(--text-3);padding:14px;">No results match filter.</td></tr>';
+}
 
-        async function fetchStaff() {
-            try {
-                const res = await fetch("/api/staff");
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
-                staffData = data.staff || [];
-                renderStaffTable();
-                nameMap = {};
-                for (const s of staffData) {
-                    nameMap[String(s.discord_id)] = s.label || `User ${s.discord_id}`;
-                }
-                updateDistributionChart();
-            } catch (e) {
-                console.error(e);
-            }
-        }
+// ── Bot actions ────────────────────────────────────────────────────────────
+async function botAction(action) {
+  const msg = $('ctrlMsg');
+  msg.innerHTML = '<div class="spin"></div> Processing…';
+  try {
+    const r = await fetch(`/${action}`, {method:'POST'});
+    const d = await r.json();
+    msg.textContent = d.message || 'Done.';
+    setTimeout(()=>msg.textContent='', 3500);
+    if (['start','stop','restart'].includes(action)) {
+      setTimeout(()=>{ loadStatus(); loadOverview(); loadActivity(); loadStaff(); }, 1500);
+    } else if (action==='reset') {
+      setTimeout(()=>location.reload(), 3000);
+    }
+  } catch(e) {
+    msg.textContent = 'Error: ' + e.message;
+  }
+}
 
-        function renderStaffTable() {
-            staffBody.innerHTML = "";
-            if (!staffData.length) {
-                staffBody.innerHTML = "<tr><td colspan='10' class='text-small text-muted'>No staff records found.</td></tr>";
-                return;
-            }
-            for (const s of staffData) {
-                const tr = document.createElement("tr");
-                tr.innerHTML = `
-                    <td>
-                        <div class="name-cell">
-                            <span class="name-primary">${s.label || `User ${s.discord_id}`}</span>
-                            <span class="name-secondary">${s.discord_id}</span>
-                        </div>
-                    </td>
-                    <td class="text-right mono">${formatNumber(s.reputation || 0)}</td>
-                    <td class="text-right mono">${formatNumber(s.recruitment || 0)}</td>
-                    <td class="text-right mono">${formatNumber(s.progress_report || 0)}</td>
-                    <td class="text-right mono">${formatNumber(s.progress_help || 0)}</td>
-                    <td class="text-right mono">${formatNumber(s.purchase_invoice || 0)}</td>
-                    <td class="text-right mono">${formatNumber(s.demolition_report || 0)}</td>
-                    <td class="text-right mono">${formatNumber(s.eviction_report || 0)}</td>
-                    <td class="text-right mono">${formatNumber(s.scroll_completion || 0)}</td>
-                    <td>
-                        ${(s.roles || []).map(r => `<span class="role-badge">${r}</span>`).join("")}
-                    </td>
-                `;
-                staffBody.appendChild(tr);
-            }
-        }
+// ── Fetch helper ───────────────────────────────────────────────────────────
+async function apiFetch(url) {
+  try {
+    const r = await fetch(url);
+    return await r.json();
+  } catch(e) {
+    console.error(url, e);
+    return null;
+  }
+}
 
-        async function fetchActivitySeries(granularity) {
-            try {
-                const res = await fetch(`/api/activity_timeseries?granularity=${encodeURIComponent(granularity)}`);
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
-                updateActivityChart(data);
-            } catch (e) {
-                console.error(e);
-            }
-        }
+// ── WebSocket logs ─────────────────────────────────────────────────────────
+const socket = io();
+socket.on('log', d => {
+  const box = $('logBox');
+  const el = document.createElement('div');
+  el.className = 'log-line';
+  const txt = d.line || '';
+  if (/error|exception|traceback/i.test(txt)) el.classList.add('err');
+  else if (/warn/i.test(txt)) el.classList.add('warn');
+  else if (/info/i.test(txt)) el.classList.add('info');
+  el.textContent = txt;
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+  if (box.children.length > 1000) box.removeChild(box.firstChild);
+});
 
-        function scheduleChartResize() {
-            if (resizeScheduled) return;
-            resizeScheduled = true;
-            requestAnimationFrame(() => {
-                resizeScheduled = false;
-                if (activityChart) activityChart.resize();
-                if (distributionChart) distributionChart.resize();
-            });
-        }
+// ── Event wiring ───────────────────────────────────────────────────────────
+$('startBtn').onclick = ()=>botAction('start');
+$('stopBtn').onclick  = ()=>botAction('stop');
+$('restartBtn').onclick = ()=>botAction('restart');
+$('resetBtn').onclick = ()=>botAction('reset');
+$('clearLogsBtn').onclick = ()=>$('logBox').innerHTML='';
 
-        function updateActivityChart(payload) {
-            const labels = payload.labels || [];
-            const series = payload.series || {};
+$('refreshBtn').onclick = ()=>{
+  loadStatus(); loadOverview(); loadActivity();
+  loadStaff(); loadLeaderboard(); loadTimeseries(currentGran);
+};
 
-            const datasets = [
-                { key: "recruitment", label: "Recruitments" },
-                { key: "progress_report", label: "Progress Reports" },
-                { key: "progress_help", label: "Progress Help" },
-                { key: "purchase_invoice", label: "Invoices" },
-                { key: "demolition_report", label: "Demolitions" },
-                { key: "eviction_report", label: "Evictions" },
-                { key: "scroll_completion", label: "Scrolls" },
-                { key: "reputation", label: "Reputation" }
-            ].map(cfg => {
-                return {
-                    label: cfg.label,
-                    data: (series[cfg.key] || []).map(x => x || 0),
-                    borderColor: activityColors[cfg.key],
-                    backgroundColor: activityColors[cfg.key] + "40",
-                    tension: 0.35,
-                    fill: cfg.key !== "reputation",
-                    borderWidth: cfg.key === "reputation" ? 2 : 1.5,
-                    pointRadius: 2,
-                    pointHoverRadius: 3
-                };
-            });
+document.querySelectorAll('[data-gran]').forEach(btn => {
+  btn.addEventListener('click', ()=>{
+    currentGran = btn.dataset.gran;
+    loadTimeseries(currentGran);
+  });
+});
 
-            if (!activityChart) {
-                activityChart = new Chart(activityCtx, {
-                    type: "line",
-                    data: { labels, datasets },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                labels: {
-                                    color: "#edf2f4",
-                                    font: { size: 10 }
-                                }
-                            }
-                        },
-                        scales: {
-                            x: {
-                                grid: { color: "rgba(141,153,174,0.25)" },
-                                ticks: { color: "#edf2f4", font: { size: 10 } }
-                            },
-                            y: {
-                                beginAtZero: true,
-                                grid: { color: "rgba(141,153,174,0.25)" },
-                                ticks: { color: "#edf2f4", font: { size: 10 } }
-                            }
-                        }
-                    }
-                });
-            } else {
-                activityChart.data.labels = labels;
-                activityChart.data.datasets = datasets;
-                activityChart.update();
-            }
-        }
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    $(tab.dataset.panel).classList.add('active');
+    if (tab.dataset.panel === 'staff') {
+      setTimeout(()=>{ distChart?.resize(); distChart?.update(); }, 60);
+    }
+    if (tab.dataset.panel === 'leaderboard') loadLeaderboard();
+  });
+});
 
-        function updateDistributionChart() {
-            const category = distCategorySelect.value;
-            if (!staffData.length) return;
-            const sorted = [...staffData].sort((a, b) => (b[category] || 0) - (a[category] || 0)).slice(0, 12);
-            const labels = sorted.map(s => s.label || `User ${s.discord_id}`);
-            const values = sorted.map(s => s[category] || 0);
+$('distSel').addEventListener('change', updateDistChart);
+$('lbCat').addEventListener('change', loadLeaderboard);
+$('lbPeriod').addEventListener('change', loadLeaderboard);
+$('lbSearch').addEventListener('input', renderLeaderboard);
 
-            if (!distributionChart) {
-                distributionChart = new Chart(distCtx, {
-                    type: "bar",
-                    data: {
-                        labels,
-                        datasets: [{
-                            label: "Forms",
-                            data: values,
-                            backgroundColor: "rgba(79,140,201,0.7)"
-                        }]
-                    },
-                    options: {
-                        indexAxis: "y",
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false }
-                        },
-                        scales: {
-                            x: {
-                                grid: { color: "rgba(141,153,174,0.25)" },
-                                ticks: { color: "#edf2f4", font: { size: 10 } }
-                            },
-                            y: {
-                                grid: { display: false },
-                                ticks: { color: "#edf2f4", font: { size: 10 } }
-                            }
-                        }
-                    }
-                });
-            } else {
-                distributionChart.data.labels = labels;
-                distributionChart.data.datasets[0].data = values;
-                distributionChart.update();
-            }
-        }
+$('modalClose').onclick = ()=>$('histOverlay').style.display='none';
+$('histOverlay').addEventListener('click', e=>{ if(e.target===$('histOverlay')) $('histOverlay').style.display='none'; });
 
-        async function fetchLeaderboard() {
-            try {
-                const category = lbCat.value;
-                const period = lbPeriod.value;
-                const res = await fetch(`/api/leaderboard/${category}/${period}`);
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
-                leaderboardRows = data || [];
-                renderLeaderboard();
-            } catch (e) {
-                console.error(e);
-            }
-        }
-
-        function renderLeaderboard() {
-            leaderboardBody.innerHTML = "";
-            if (!leaderboardRows.length) {
-                leaderboardBody.innerHTML = "<tr><td colspan='3' class='text-small text-muted'>No leaderboard data.</td></tr>";
-                return;
-            }
-            const search = (lbSearch.value || "").toLowerCase();
-            let rank = 1;
-            for (const row of leaderboardRows) {
-                const id = String(row.discord_id || "");
-                const label = nameMap[id] || `User ${id}`;
-                const value = row.points || row.count || 0;
-
-                if (search) {
-                    const text = (label + " " + id).toLowerCase();
-                    if (!text.includes(search)) continue;
-                }
-
-                const tr = document.createElement("tr");
-                tr.innerHTML = `
-                    <td class="text-right mono">${rank++}</td>
-                    <td>
-                        <div class="name-cell">
-                            <span class="name-primary">${label}</span>
-                            <span class="name-secondary">${id}</span>
-                        </div>
-                    </td>
-                    <td class="text-right mono">${formatNumber(value)}</td>
-                `;
-                leaderboardBody.appendChild(tr);
-            }
-            if (!leaderboardBody.children.length) {
-                leaderboardBody.innerHTML = "<tr><td colspan='3' class='text-small text-muted'>No results match the current filter.</td></tr>";
-            }
-        }
-
-        async function sendAction(action) {
-            controlMsg.innerHTML = '<span class="inline-spinner"></span> &nbsp;Processing…';
-            try {
-                const res = await fetch(`/${action}`, { method: "POST" });
-                const data = await res.json();
-                controlMsg.textContent = data.message || "Done.";
-                setTimeout(() => { controlMsg.textContent = ""; }, 3500);
-
-                if (["start", "stop", "restart"].includes(action)) {
-                    setTimeout(() => {
-                        fetchStatus();
-                        fetchOverview();
-                        fetchActivityList();
-                        fetchStaff();
-                    }, 1500);
-                } else if (action === "reset") {
-                    setTimeout(() => { location.reload(); }, 3000);
-                }
-            } catch (e) {
-                console.error(e);
-                controlMsg.textContent = "Error while sending action.";
-            }
-        }
-
-        document.querySelectorAll(".tab").forEach(tab => {
-            tab.addEventListener("click", () => {
-                const target = tab.dataset.tab;
-                document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-                document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
-                tab.classList.add("active");
-                document.getElementById(target).classList.add("active");
-                scheduleChartResize();
-            });
-        });
-
-        document.getElementById("startBtn").onclick = () => sendAction("start");
-        document.getElementById("stopBtn").onclick = () => sendAction("stop");
-        document.getElementById("restartBtn").onclick = () => sendAction("restart");
-        document.getElementById("resetBtn").onclick = () => sendAction("reset");
-        refreshAllBtn.onclick = () => {
-            fetchStatus();
-            fetchOverview();
-            fetchActivityList();
-            fetchStaff();
-            fetchLeaderboard();
-            fetchActivitySeries(currentGranularity);
-        };
-
-        document.querySelectorAll("[data-granularity]").forEach(btn => {
-            btn.addEventListener("click", () => {
-                currentGranularity = btn.dataset.granularity;
-                fetchActivitySeries(currentGranularity);
-            });
-        });
-
-        distCategorySelect.addEventListener("change", updateDistributionChart);
-        lbCat.addEventListener("change", fetchLeaderboard);
-        lbPeriod.addEventListener("change", fetchLeaderboard);
-        lbFilter.addEventListener("click", renderLeaderboard);
-        lbSearch.addEventListener("input", renderLeaderboard);
-
-        const socket = io();
-        socket.on("log", (data) => {
-            const line = document.createElement("div");
-            line.className = "log-line";
-            line.textContent = data.line;
-            logContainer.appendChild(line);
-            logContainer.scrollTop = logContainer.scrollHeight;
-            if (logContainer.children.length > 800) {
-                logContainer.removeChild(logContainer.firstChild);
-            }
-        });
-
-        window.addEventListener("resize", scheduleChartResize);
-
-        (async function init() {
-            await fetchStatus();
-            await fetchOverview();
-            await fetchActivityList();
-            await fetchStaff();
-            await fetchLeaderboard();
-            await fetchActivitySeries(currentGranularity);
-
-            setInterval(() => {
-                fetchStatus();
-                fetchOverview();
-                fetchActivityList();
-            }, 15000);
-        })();
-    </script>
+// ── Init ───────────────────────────────────────────────────────────────────
+(async function init() {
+  await loadStatus();
+  await Promise.all([loadOverview(), loadActivity(), loadStaff(), loadLeaderboard()]);
+  await loadTimeseries(currentGran);
+  setInterval(()=>{ loadStatus(); loadOverview(); loadActivity(); }, 15000);
+})();
+</script>
 </body>
 </html>
 """
