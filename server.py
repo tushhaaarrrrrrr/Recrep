@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import asyncio
 import threading
@@ -14,7 +15,7 @@ from utils.logger import get_logger
 
 BOT_SCRIPT = "main.py"
 PID_FILE = "bot.pid"
-VENV_PYTHON = os.path.join("venv", "Scripts", "python.exe")
+VENV_PYTHON = sys.executable
 LOG_FILE = "bot.log"
 
 app = Flask(__name__)
@@ -83,12 +84,28 @@ def get_bot_status():
     return {"running": True, "pid": proc.pid, "uptime": uptime}
 
 
+VENV_PYTHON = sys.executable
+
 def start_bot():
     if _get_bot_process():
         return False, "Bot is already running."
-    proc = subprocess.Popen([VENV_PYTHON, BOT_SCRIPT])
+
+    log_file = open(LOG_FILE, "a")
+
+    try:
+        proc = subprocess.Popen(
+            [VENV_PYTHON, BOT_SCRIPT],
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            start_new_session=True
+        )
+    except Exception as e:
+        log_file.close()
+        return False, f"Failed to start bot: {e}"
+
     with open(PID_FILE, "w") as f:
         f.write(str(proc.pid))
+
     return True, f"Bot started (PID {proc.pid})."
 
 

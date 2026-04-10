@@ -6,7 +6,7 @@ import signal
 
 BOT_SCRIPT = "main.py"
 PID_FILE = "bot.pid"
-VENV_PYTHON = os.path.join("venv", "Scripts", "python.exe")
+VENV_PYTHON = sys.executable
 
 def get_pid():
     if not os.path.exists(PID_FILE):
@@ -18,9 +18,18 @@ def start():
     if get_pid() is not None:
         print("Bot already running (PID file exists).")
         return
-    proc = subprocess.Popen([VENV_PYTHON, BOT_SCRIPT])
+
+    with open("bot.log", "a") as log_file:
+        proc = subprocess.Popen(
+            [VENV_PYTHON, BOT_SCRIPT],
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            start_new_session=True
+        )
+
     with open(PID_FILE, "w") as f:
         f.write(str(proc.pid))
+
     print(f"Bot started in background with PID {proc.pid}")
     print("Use 'python bot_manager.py stop' to stop it.")
     print("Logs are written to bot.log")
