@@ -58,6 +58,7 @@ class RecruitmentCog(commands.Cog):
 
             data = {
                 'submitted_by': interaction.user.id,
+                'submitter_display': interaction.user.display_name,
                 'ingame_username': ingame_username,
                 'discord_username': discord_username,
                 'age': age,

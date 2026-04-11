@@ -23,7 +23,6 @@ class ApprovalView(discord.ui.View):
         'scroll_completion': 'scr'
     }
 
-    # Thread prefix mapping (same as in ApprovalCog)
     _THREAD_PREFIX = {
         'recruitment': 'Recruitments',
         'progress_report': 'Progress Reports',
@@ -39,7 +38,7 @@ class ApprovalView(discord.ui.View):
                  confirmation_msg_id: int = None, confirmation_channel_id: int = None,
                  form_data: dict = None,
                  resend_confirmation_msg_id: int = None, resend_confirmation_channel_id: int = None):
-        super().__init__(timeout=None)  # Persistent view (no timeout)
+        super().__init__(timeout=None)
         self.table = table
         self.form_id = form_id
         self.form_type = form_type
@@ -50,11 +49,9 @@ class ApprovalView(discord.ui.View):
         self.confirmation_msg_id = confirmation_msg_id
         self.confirmation_channel_id = confirmation_channel_id
         self.form_data = form_data
-        # New: track resend confirmation message for cleanup
         self.resend_confirmation_msg_id = resend_confirmation_msg_id
         self.resend_confirmation_channel_id = resend_confirmation_channel_id
 
-        # Set custom_id for each button dynamically based on form info (ensures uniqueness and persistence)
         for child in self.children:
             if isinstance(child, discord.ui.Button):
                 child.custom_id = f"{child.custom_id}_{table}_{form_id}"
@@ -64,16 +61,10 @@ class ApprovalView(discord.ui.View):
         return f"{prefix}_{self.form_id}"
 
     async def _ensure_loaded_from_custom_id(self, interaction: discord.Interaction) -> bool:
-        """If the view was recreated from persistence (empty attributes), load data from custom_id."""
         if not self.table or self.form_id == 0:
-            # Extract from the button's custom_id (format: "approve_button_recruitment_123")
             button_id = interaction.data.get('custom_id', '')
             parts = button_id.split('_')
             if len(parts) >= 3:
-                # Expected format: action_table_formid, e.g., "approve_button_recruitment_123"
-                # Parts: ['approve', 'button', 'recruitment', '123'] or similar
-                # We need to locate the table name and the form ID
-                # Table name is one of the known table keys, form ID is the last part
                 table_candidate = parts[-2]
                 form_id_candidate = parts[-1]
 
@@ -85,7 +76,6 @@ class ApprovalView(discord.ui.View):
                         logger.error(f"Invalid form_id in custom_id: {button_id}")
                         return False
 
-                    # Fetch form data from DB
                     row = await DBService.fetchrow(
                         f"SELECT submitted_by FROM {self.table} WHERE id = $1",
                         self.form_id
@@ -98,7 +88,7 @@ class ApprovalView(discord.ui.View):
                         self.thread_prefix = self._THREAD_PREFIX.get(
                             self.table, self.table.replace('_', ' ').title()
                         )
-                        self.form_data = None  # Will be fetched on demand
+                        self.form_data = None
                         logger.info(f"Reconstructed ApprovalView for {self.table} #{self.form_id} after restart")
                         return True
                     else:
@@ -110,11 +100,9 @@ class ApprovalView(discord.ui.View):
             else:
                 logger.warning(f"Unexpected custom_id format: {button_id}")
                 return False
-        return True  # Already loaded
+        return True
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        """Validate form status before processing any button click."""
-        # Ensure view is fully loaded (after bot restart)
         if not await self._ensure_loaded_from_custom_id(interaction):
             await interaction.response.send_message(
                 "❌ Could not load form data. The form may have been deleted.",
@@ -122,7 +110,6 @@ class ApprovalView(discord.ui.View):
             )
             return False
 
-        # Re-fetch current status to ensure form is still pending
         row = await DBService.fetchrow(
             f"SELECT status FROM {self.table} WHERE id = $1", self.form_id
         )
@@ -131,7 +118,6 @@ class ApprovalView(discord.ui.View):
                 "⚠️ This form is no longer pending. It may have been processed already.",
                 ephemeral=True
             )
-            # Disable buttons visually
             for child in self.children:
                 child.disabled = True
             await interaction.message.edit(view=self)
@@ -147,13 +133,15 @@ class ApprovalView(discord.ui.View):
 
     async def _fetch_form_details(self) -> dict:
         columns = {
-            'recruitment': ['submitted_by', 'ingame_username', 'nickname', 'plots', 'screenshot_urls', 'status', 'discord_username'],
+            'recruitment': ['submitted_by', 'ingame_username', 'nickname', 'plots', 'screenshot_urls', 'status', 'discord_username', 'age'],
             'progress_report': ['submitted_by', 'project_name', 'time_spent', 'helper_mentions', 'screenshot_urls', 'status'],
-            'purchase_invoice': ['submitted_by', 'purchasee_nickname', 'purchasee_ingame', 'amount_deposited', 'screenshot_urls', 'status'],
-            'demolition_report': ['submitted_by', 'ingame_username', 'removed', 'screenshot_urls', 'status'],
+            'purchase_invoice': ['submitted_by', 'seller_display', 'purchasee_nickname', 'purchasee_ingame',
+                                 'purchase_type', 'num_plots', 'total_plots', 'banner_color', 'shop_number',
+                                 'amount_deposited', 'screenshot_urls', 'status'],
+            'demolition_report': ['submitted_by', 'ingame_username', 'removed', 'stashed_items', 'screenshot_urls', 'status'],
             'demolition_request': ['submitted_by', 'ingame_username', 'reason', 'screenshot_urls', 'status'],
-            'eviction_report': ['submitted_by', 'ingame_owner', 'inactivity_period', 'screenshot_urls', 'status'],
-            'scroll_completion': ['submitted_by', 'scroll_type', 'screenshot_urls', 'status']
+            'eviction_report': ['submitted_by', 'ingame_owner', 'items_stored', 'inactivity_period', 'screenshot_urls', 'status'],
+            'scroll_completion': ['submitted_by', 'scroll_type', 'items_stored', 'screenshot_urls', 'status']
         }
         cols = columns.get(self.table, ['submitted_by'])
         select_cols = ", ".join(cols)
@@ -186,56 +174,165 @@ class ApprovalView(discord.ui.View):
 
         submitter = guild.get_member(self.submitter_id)
         submitter_name = submitter.display_name if submitter else f"User {self.submitter_id}"
-        summary = self._build_summary()
-        screenshot_urls_str = self.form_data.get('screenshot_urls') if self.form_data else ''
-        url_list = screenshot_urls_str.split(',') if screenshot_urls_str else []
-        first_url = url_list[0] if url_list else None
-        extra_count = len(url_list) - 1 if url_list else 0
         now_utc = datetime.now(timezone.utc)
         timestamp_str = now_utc.strftime('%Y-%m-%d %H:%M:%S UTC')
         display_id = self._get_display_id()
+        screenshot_urls_str = self.form_data.get('screenshot_urls', '') if self.form_data else ''
+        url_list = screenshot_urls_str.split(',') if screenshot_urls_str else []
+        first_url = url_list[0] if url_list else None
+        extra_count = len(url_list) - 1 if url_list else 0
 
+        # Build rich embed for all non-recruitment forms
+        embed = discord.Embed(
+            title=f"✅ {self.form_type.replace('_', ' ').title()} Approved",
+            color=discord.Color.green(),
+            timestamp=now_utc
+        )
+        embed.add_field(name="Submitted by", value=submitter_name, inline=True)
+        embed.add_field(name="Approved by", value=approver.display_name, inline=True)
+        embed.add_field(name="Form ID", value=display_id, inline=True)
+
+        # Add form-specific details
         if self.table == 'recruitment':
-            # Build notification text with Discord username if present
-            details = summary
-            discord_username = self.form_data.get('discord_username') if self.form_data else None
-            if discord_username:
-                details += f"\n• **Discord:** {discord_username}"
-            notification = (
-                f"✅ **{self.form_type.replace('_', ' ').title()} Approved**\n"
-                f"• **Submitted by:** {submitter_name}\n"
-                f"• **Approved by:** {approver.display_name}\n"
-                f"• **Form ID:** {display_id}\n"
-                f"• **Details:** {details}\n"
-                f"• **Timestamp:** {timestamp_str}"
-            )
-            try:
-                thread = await ThreadManager.get_or_create_monthly_thread(guild, channel_id, self.thread_prefix)
-                await thread.send(notification)
-            except Exception as e:
-                logger.error(f"Failed to send notification: {e}")
-        else:
-            embed = discord.Embed(
-                title=f"✅ {self.form_type.replace('_', ' ').title()} Approved",
-                color=discord.Color.green(),
-                timestamp=now_utc
-            )
-            embed.add_field(name="Submitted by", value=submitter_name, inline=True)
-            embed.add_field(name="Approved by", value=approver.display_name, inline=True)
-            embed.add_field(name="Form ID", value=display_id, inline=True)
-            embed.add_field(name="Details", value=summary, inline=False)
-
+            nickname = self.form_data.get('nickname', '?')
+            ingame = self.form_data.get('ingame_username', '?')
+            plots = self.form_data.get('plots', 0)
+            discord_user = self.form_data.get('discord_username')
+            age = self.form_data.get('age')
+            details = f"Recruited **{nickname}** ({ingame}) – {plots} plots"
+            if discord_user:
+                details += f"\n• Discord: {discord_user}"
+            if age:
+                details += f"\n• Age: {age}"
+            embed.add_field(name="Details", value=details, inline=False)
+            # Recruitment uses plain text fallback, but embed is cleaner
             if first_url:
                 embed.set_image(url=first_url)
                 if extra_count > 0:
                     embed.add_field(name="Additional Screenshots", value=f"{extra_count} more", inline=False)
-
             embed.set_footer(text=f"Approved on {timestamp_str}")
             try:
                 thread = await ThreadManager.get_or_create_monthly_thread(guild, channel_id, self.thread_prefix)
                 await thread.send(embed=embed)
             except Exception as e:
-                logger.error(f"Failed to send embed notification: {e}")
+                logger.error(f"Failed to send recruitment embed: {e}")
+
+        elif self.table == 'progress_report':
+            project = self.form_data.get('project_name', '?')
+            time_spent = self.form_data.get('time_spent', '?')
+            helper = self.form_data.get('helper_mentions')
+            embed.add_field(name="Project", value=project, inline=False)
+            embed.add_field(name="Time Spent", value=time_spent, inline=True)
+            if helper:
+                embed.add_field(name="Helper", value=helper, inline=True)
+            if first_url:
+                embed.set_image(url=first_url)
+                if extra_count > 0:
+                    embed.add_field(name="Additional Screenshots", value=f"{extra_count} more", inline=False)
+            embed.set_footer(text=f"Approved on {timestamp_str}")
+            try:
+                thread = await ThreadManager.get_or_create_monthly_thread(guild, channel_id, self.thread_prefix)
+                await thread.send(embed=embed)
+            except Exception as e:
+                logger.error(f"Failed to send progress embed: {e}")
+
+        elif self.table == 'purchase_invoice':
+            buyer_nick = self.form_data.get('purchasee_nickname', '?')
+            buyer_ign = self.form_data.get('purchasee_ingame', '?')
+            amount = self.form_data.get('amount_deposited', 0)
+            purchase_type = self.form_data.get('purchase_type', '?')
+            num_plots = self.form_data.get('num_plots')
+            total_plots = self.form_data.get('total_plots')
+            banner_color = self.form_data.get('banner_color')
+            shop_number = self.form_data.get('shop_number')
+            seller_display = self.form_data.get('seller_display', submitter_name)
+
+            embed.add_field(name="Seller", value=seller_display, inline=True)
+            embed.add_field(name="Buyer", value=f"{buyer_nick} ({buyer_ign})", inline=True)
+            embed.add_field(name="Type", value=purchase_type, inline=True)
+            embed.add_field(name="Amount", value=f"{amount} coins", inline=True)
+            if num_plots:
+                embed.add_field(name="Plots", value=f"{num_plots} (total: {total_plots})", inline=True)
+            if banner_color:
+                embed.add_field(name="Mall Shop", value=f"Color {banner_color} · #{shop_number}", inline=True)
+            if first_url:
+                embed.set_image(url=first_url)
+                if extra_count > 0:
+                    embed.add_field(name="Additional Screenshots", value=f"{extra_count} more", inline=False)
+            embed.set_footer(text=f"Approved on {timestamp_str}")
+            try:
+                thread = await ThreadManager.get_or_create_monthly_thread(guild, channel_id, self.thread_prefix)
+                await thread.send(embed=embed)
+            except Exception as e:
+                logger.error(f"Failed to send invoice embed: {e}")
+
+        elif self.table == 'demolition_report':
+            player = self.form_data.get('ingame_username', '?')
+            removed = self.form_data.get('removed', '?')
+            stashed = "Yes" if self.form_data.get('stashed_items') else "No"
+            embed.add_field(name="Player", value=player, inline=True)
+            embed.add_field(name="Removed", value=removed, inline=True)
+            embed.add_field(name="Items Stashed", value=stashed, inline=True)
+            if first_url:
+                embed.set_image(url=first_url)
+                if extra_count > 0:
+                    embed.add_field(name="Additional Screenshots", value=f"{extra_count} more", inline=False)
+            embed.set_footer(text=f"Approved on {timestamp_str}")
+            try:
+                thread = await ThreadManager.get_or_create_monthly_thread(guild, channel_id, self.thread_prefix)
+                await thread.send(embed=embed)
+            except Exception as e:
+                logger.error(f"Failed to send demolition embed: {e}")
+
+        elif self.table == 'demolition_request':
+            player = self.form_data.get('ingame_username', '?')
+            reason = self.form_data.get('reason', '?')
+            embed.add_field(name="Target Player", value=player, inline=True)
+            embed.add_field(name="Reason", value=reason, inline=False)
+            if first_url:
+                embed.set_image(url=first_url)
+                if extra_count > 0:
+                    embed.add_field(name="Additional Screenshots", value=f"{extra_count} more", inline=False)
+            embed.set_footer(text=f"Approved on {timestamp_str}")
+            try:
+                thread = await ThreadManager.get_or_create_monthly_thread(guild, channel_id, self.thread_prefix)
+                await thread.send(embed=embed)
+            except Exception as e:
+                logger.error(f"Failed to send demolition request embed: {e}")
+
+        elif self.table == 'eviction_report':
+            owner = self.form_data.get('ingame_owner', '?')
+            items_stored = "Yes" if self.form_data.get('items_stored') else "No"
+            inactivity = self.form_data.get('inactivity_period', '?')
+            embed.add_field(name="Owner", value=owner, inline=True)
+            embed.add_field(name="Items Stored", value=items_stored, inline=True)
+            embed.add_field(name="Inactivity Period", value=inactivity, inline=True)
+            if first_url:
+                embed.set_image(url=first_url)
+                if extra_count > 0:
+                    embed.add_field(name="Additional Screenshots", value=f"{extra_count} more", inline=False)
+            embed.set_footer(text=f"Approved on {timestamp_str}")
+            try:
+                thread = await ThreadManager.get_or_create_monthly_thread(guild, channel_id, self.thread_prefix)
+                await thread.send(embed=embed)
+            except Exception as e:
+                logger.error(f"Failed to send eviction embed: {e}")
+
+        elif self.table == 'scroll_completion':
+            scroll_type = self.form_data.get('scroll_type', '?').capitalize()
+            items_stored = "Yes" if self.form_data.get('items_stored') else "No"
+            embed.add_field(name="Scroll Type", value=scroll_type, inline=True)
+            embed.add_field(name="Items Stored", value=items_stored, inline=True)
+            if first_url:
+                embed.set_image(url=first_url)
+                if extra_count > 0:
+                    embed.add_field(name="Additional Screenshots", value=f"{extra_count} more", inline=False)
+            embed.set_footer(text=f"Approved on {timestamp_str}")
+            try:
+                thread = await ThreadManager.get_or_create_monthly_thread(guild, channel_id, self.thread_prefix)
+                await thread.send(embed=embed)
+            except Exception as e:
+                logger.error(f"Failed to send scroll embed: {e}")
 
     def _build_summary(self) -> str:
         if not self.form_data:
@@ -265,7 +362,6 @@ class ApprovalView(discord.ui.View):
 
     async def _cleanup_messages(self, interaction: discord.Interaction):
         """Delete all associated confirmation messages and the approval message itself."""
-        # Delete original form confirmation (if exists)
         if self.confirmation_msg_id and self.confirmation_channel_id:
             try:
                 channel = interaction.client.get_channel(self.confirmation_channel_id)
@@ -278,7 +374,6 @@ class ApprovalView(discord.ui.View):
             except Exception as e:
                 logger.warning(f"Failed to delete original confirmation message {self.confirmation_msg_id}: {e}")
 
-        # Delete resend confirmation (if exists)
         if self.resend_confirmation_msg_id and self.resend_confirmation_channel_id:
             try:
                 channel = interaction.client.get_channel(self.resend_confirmation_channel_id)
@@ -291,7 +386,6 @@ class ApprovalView(discord.ui.View):
             except Exception as e:
                 logger.warning(f"Failed to delete resend confirmation message {self.resend_confirmation_msg_id}: {e}")
 
-        # Delete the approval message itself (the one with buttons)
         try:
             await interaction.message.delete()
         except discord.NotFound:
@@ -310,7 +404,6 @@ class ApprovalView(discord.ui.View):
             )
             return
 
-        # Disable buttons to prevent double-click
         for child in self.children:
             child.disabled = True
         await interaction.edit_original_response(view=self)
@@ -338,7 +431,6 @@ class ApprovalView(discord.ui.View):
                 await DBService.approve_form(self.table, self.form_id, interaction.user.id)
                 await self._send_notification(interaction.guild, interaction.user)
 
-                # Clean up all related messages
                 await self._cleanup_messages(interaction)
 
                 await interaction.followup.send(
@@ -355,13 +447,10 @@ class ApprovalView(discord.ui.View):
                     "*You can approve or deny it later using the buttons below.*",
                     ephemeral=True
                 )
-            else:  # deny
+            else:
                 await DBService.deny_form(self.table, self.form_id)
                 await self._delete_form_images()
-
-                # Clean up all related messages
                 await self._cleanup_messages(interaction)
-
                 await interaction.followup.send(
                     f"❌ **Form {display_id} denied** by {interaction.user.display_name}.",
                     ephemeral=True

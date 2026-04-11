@@ -63,6 +63,7 @@ class DemolitionCog(commands.Cog):
 
             data = {
                 'submitted_by': interaction.user.id,
+                'submitter_display': interaction.user.display_name,
                 'ingame_username': ingame_username,
                 'removed': removed,
                 'stashed_items': stashed_items.lower() == 'yes',
@@ -170,6 +171,7 @@ class DemolitionCog(commands.Cog):
 
             data = {
                 'submitted_by': interaction.user.id,
+                'submitter_display': interaction.user.display_name,
                 'ingame_username': ingame_username,
                 'reason': reason,
                 'screenshot_urls': ','.join(screenshot_urls),

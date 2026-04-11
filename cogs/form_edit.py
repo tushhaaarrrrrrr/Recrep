@@ -86,8 +86,10 @@ class FormEditCog(commands.Cog):
         value: str
     ):
         """Edit a specific field of a pending or held form."""
+        await interaction.response.defer(ephemeral=True)
+
         if '_' not in form_id:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ Invalid form ID format. Use format like `rec_1`, `rep_2`, `inv_3`, etc.",
                 ephemeral=True
             )
@@ -96,7 +98,7 @@ class FormEditCog(commands.Cog):
         try:
             numeric_id = int(num_part)
         except ValueError:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ Invalid numeric ID in form ID.",
                 ephemeral=True
             )
@@ -108,7 +110,7 @@ class FormEditCog(commands.Cog):
                 table = t
                 break
         if not table:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"❌ Unknown prefix `{prefix}`. Valid prefixes: {', '.join(self.TABLE_PREFIX.values())}",
                 ephemeral=True
             )
@@ -116,20 +118,20 @@ class FormEditCog(commands.Cog):
 
         form_info = await DBService.get_form_by_id(table, numeric_id)
         if not form_info:
-            await interaction.response.send_message("❌ Form not found.", ephemeral=True)
+            await interaction.followup.send("❌ Form not found.", ephemeral=True)
             return
         status, submitter_id = form_info
         if interaction.user.id != submitter_id:
-            await interaction.response.send_message("❌ You can only edit your own forms.", ephemeral=True)
+            await interaction.followup.send("❌ You can only edit your own forms.", ephemeral=True)
             return
         if status not in ('pending', 'hold'):
-            await interaction.response.send_message("❌ This form cannot be edited (already approved/denied).", ephemeral=True)
+            await interaction.followup.send("❌ This form cannot be edited (already approved/denied).", ephemeral=True)
             return
 
         allowed = self.ALLOWED_FIELDS.get(table, {})
         if field not in allowed:
             valid_fields = ", ".join(allowed.keys())
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"❌ Invalid field for this form type.\nValid fields: `{valid_fields}`",
                 ephemeral=True
             )
@@ -138,20 +140,20 @@ class FormEditCog(commands.Cog):
         original_value = value
         if field in ('stashed_items', 'items_stored'):
             if value.lower() not in ('yes', 'no'):
-                await interaction.response.send_message("❌ Value must be `yes` or `no`.", ephemeral=True)
+                await interaction.followup.send("❌ Value must be `yes` or `no`.", ephemeral=True)
                 return
             value = value.lower() == 'yes'
         elif field in ('plots', 'num_plots', 'total_plots', 'shop_number'):
             try:
                 value = int(value)
             except ValueError:
-                await interaction.response.send_message("❌ Value must be a number.", ephemeral=True)
+                await interaction.followup.send("❌ Value must be a number.", ephemeral=True)
                 return
         elif field == 'amount_deposited':
             try:
                 value = float(value)
             except ValueError:
-                await interaction.response.send_message("❌ Value must be a number.", ephemeral=True)
+                await interaction.followup.send("❌ Value must be a number.", ephemeral=True)
                 return
 
         await DBService.update_form_field(table, numeric_id, field, value)
@@ -159,7 +161,7 @@ class FormEditCog(commands.Cog):
 
         await self._refresh_approval_embed(interaction.guild, table, numeric_id)
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"✅ **Form `{form_id}` updated.** Field `{field}` changed from `{original_value}` to `{value}`.",
             ephemeral=True
         )

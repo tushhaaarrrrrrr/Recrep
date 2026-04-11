@@ -62,6 +62,7 @@ class ProgressCog(commands.Cog):
 
             data = {
                 'submitted_by': interaction.user.id,
+                'submitter_display': interaction.user.display_name,
                 'helper_mentions': helper,
                 'project_name': project_name,
                 'time_spent': time_spent,

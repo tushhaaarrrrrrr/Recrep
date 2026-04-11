@@ -62,6 +62,7 @@ class EvictionCog(commands.Cog):
 
             data = {
                 'submitted_by': interaction.user.id,
+                'submitter_display': interaction.user.display_name,
                 'ingame_owner': ingame_owner,
                 'items_stored': items_stored.lower() == 'yes',
                 'inactivity_period': inactivity_period,

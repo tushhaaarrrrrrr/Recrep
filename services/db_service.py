@@ -53,16 +53,28 @@ class DBService:
     # Staff member management
     @staticmethod
     async def ensure_staff_member(discord_id: int, display_name: str):
+        """Insert or update staff member. Only update display_name if a non-empty value is provided."""
+        # First try to insert
         await DBService.execute(
-            "INSERT INTO staff_member (discord_id, display_name) VALUES ($1, $2) "
-            "ON CONFLICT (discord_id) DO UPDATE SET display_name = EXCLUDED.display_name",
+            """
+            INSERT INTO staff_member (discord_id, display_name)
+            VALUES ($1, $2)
+            ON CONFLICT (discord_id) DO NOTHING
+            """,
             discord_id, display_name
         )
+        # If a display name was provided, update it (only if it's non-empty)
+        if display_name and display_name.strip():
+            await DBService.execute(
+                "UPDATE staff_member SET display_name = $1 WHERE discord_id = $2",
+                display_name, discord_id
+            )
 
     # Insert forms
     @staticmethod
     async def insert_recruitment(data: Dict) -> int:
-        await DBService.ensure_staff_member(data['submitted_by'], data['recruiter_display'])
+        display_name = data.get('submitter_display', data.get('recruiter_display', ''))
+        await DBService.ensure_staff_member(data['submitted_by'], display_name)
         row = await DBService.fetchrow(
             """
             INSERT INTO recruitment (submitted_by, ingame_username, discord_username, age,
@@ -78,7 +90,8 @@ class DBService:
 
     @staticmethod
     async def insert_progress(data: Dict) -> int:
-        await DBService.ensure_staff_member(data['submitted_by'], "")
+        display_name = data.get('submitter_display', '')
+        await DBService.ensure_staff_member(data['submitted_by'], display_name)
         row = await DBService.fetchrow(
             """
             INSERT INTO progress_report (submitted_by, helper_mentions, project_name,
@@ -93,7 +106,8 @@ class DBService:
 
     @staticmethod
     async def insert_invoice(data: Dict) -> int:
-        await DBService.ensure_staff_member(data['submitted_by'], data['seller_display'])
+        display_name = data.get('submitter_display', data.get('seller_display', ''))
+        await DBService.ensure_staff_member(data['submitted_by'], display_name)
         row = await DBService.fetchrow(
             """
             INSERT INTO purchase_invoice (
@@ -112,7 +126,8 @@ class DBService:
 
     @staticmethod
     async def insert_demolition(data: Dict) -> int:
-        await DBService.ensure_staff_member(data['submitted_by'], "")
+        display_name = data.get('submitter_display', '')
+        await DBService.ensure_staff_member(data['submitted_by'], display_name)
         row = await DBService.fetchrow(
             """
             INSERT INTO demolition_report (submitted_by, ingame_username, removed,
@@ -127,7 +142,8 @@ class DBService:
 
     @staticmethod
     async def insert_demolition_request(data: Dict) -> int:
-        await DBService.ensure_staff_member(data['submitted_by'], "")
+        display_name = data.get('submitter_display', '')
+        await DBService.ensure_staff_member(data['submitted_by'], display_name)
         row = await DBService.fetchrow(
             """
             INSERT INTO demolition_request (submitted_by, ingame_username, reason, screenshot_urls)
@@ -140,7 +156,8 @@ class DBService:
 
     @staticmethod
     async def insert_eviction(data: Dict) -> int:
-        await DBService.ensure_staff_member(data['submitted_by'], "")
+        display_name = data.get('submitter_display', '')
+        await DBService.ensure_staff_member(data['submitted_by'], display_name)
         row = await DBService.fetchrow(
             """
             INSERT INTO eviction_report (submitted_by, ingame_owner, items_stored,
@@ -155,7 +172,8 @@ class DBService:
 
     @staticmethod
     async def insert_scroll(data: Dict) -> int:
-        await DBService.ensure_staff_member(data['submitted_by'], "")
+        display_name = data.get('submitter_display', '')
+        await DBService.ensure_staff_member(data['submitted_by'], display_name)
         row = await DBService.fetchrow(
             """
             INSERT INTO scroll_completion (submitted_by, scroll_type, items_stored, screenshot_urls)

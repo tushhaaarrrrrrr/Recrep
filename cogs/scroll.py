@@ -70,6 +70,7 @@ class ScrollCog(commands.Cog):
 
             data = {
                 'submitted_by': interaction.user.id,
+                'submitter_display': interaction.user.display_name,
                 'scroll_type': scroll_type_lower,
                 'items_stored': items_stored.lower() == 'yes',
                 'screenshot_urls': ','.join(screenshot_urls)

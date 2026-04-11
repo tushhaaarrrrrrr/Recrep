@@ -72,6 +72,7 @@ class InvoiceCog(commands.Cog):
 
             data = {
                 'submitted_by': interaction.user.id,
+                'submitter_display': interaction.user.display_name,
                 'seller_display': interaction.user.display_name,
                 'purchasee_nickname': purchasee_nickname,
                 'purchasee_ingame': purchasee_ingame,

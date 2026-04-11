@@ -6,6 +6,67 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+
+class LeaderboardView(discord.ui.View):
+    """Pagination view for leaderboard command."""
+
+    def __init__(self, rows, title, value_key, unit, per_page=10):
+        super().__init__(timeout=180)
+        self.rows = rows
+        self.title = title
+        self.value_key = value_key
+        self.unit = unit
+        self.per_page = per_page
+        self.current_page = 0
+        self.max_page = (len(rows) - 1) // per_page if rows else 0
+        self.update_buttons()
+
+    def update_buttons(self):
+        self.prev_button.disabled = self.current_page == 0
+        self.next_button.disabled = self.current_page >= self.max_page
+
+    def get_page_embed(self, guild: discord.Guild) -> discord.Embed:
+        start = self.current_page * self.per_page
+        end = start + self.per_page
+        page_rows = self.rows[start:end]
+
+        embed = discord.Embed(
+            title=self.title,
+            color=discord.Color.gold(),
+            timestamp=discord.utils.utcnow()
+        )
+
+        if not page_rows:
+            embed.description = "📭 **No data yet.** Submit and approve forms to appear here!"
+        else:
+            lines = []
+            for idx, row in enumerate(page_rows, start=start + 1):
+                member = guild.get_member(row['discord_id'])
+                name = member.display_name if member else f"User {row['discord_id']}"
+                value = row[self.value_key]
+                lines.append(f"{idx}. **{name}** - {value} {self.unit}")
+            embed.description = "\n".join(lines)
+            embed.set_footer(
+                text=f"Page {self.current_page + 1}/{self.max_page + 1} • Total: {len(self.rows)}"
+            )
+
+        return embed
+
+    @discord.ui.button(label="◀ Previous", style=discord.ButtonStyle.secondary, disabled=True)
+    async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page -= 1
+        self.update_buttons()
+        embed = self.get_page_embed(interaction.guild)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="Next ▶", style=discord.ButtonStyle.secondary)
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page += 1
+        self.update_buttons()
+        embed = self.get_page_embed(interaction.guild)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+
 class LeaderboardStatsCog(commands.Cog):
     """Commands for viewing leaderboards and staff statistics."""
 
@@ -14,7 +75,7 @@ class LeaderboardStatsCog(commands.Cog):
 
     @app_commands.command(
         name="leaderboard",
-        description="Show the leaderboard for a specific category and time period"
+        description="Show the full leaderboard for a specific category and time period"
     )
     @app_commands.choices(
         category=[
@@ -40,45 +101,39 @@ class LeaderboardStatsCog(commands.Cog):
         category: app_commands.Choice[str],
         period: app_commands.Choice[str]
     ):
-        # Defer to prevent timeout while fetching data
         await interaction.response.defer()
 
         try:
+            # Fetch all rows (use high limit to get full list)
             if category.value == "reputation":
-                rows = await DBService.get_leaderboard(period.value)
+                rows = await DBService.get_leaderboard(period.value, limit=1000)
                 title = f"🏆 {period.name} Reputation Leaderboard"
                 value_key = "points"
                 unit = "pts"
             elif category.value == "progress_help":
-                rows = await DBService.get_category_leaderboard(category.value, period.value)
+                rows = await DBService.get_category_leaderboard(category.value, period.value, limit=1000)
                 title = f"🤝 {period.name} Progress Help Leaderboard"
                 value_key = "count"
                 unit = "help(s)"
             else:
-                rows = await DBService.get_category_leaderboard(category.value, period.value)
+                rows = await DBService.get_category_leaderboard(category.value, period.value, limit=1000)
                 title = f"📊 {period.name} {category.name} Leaderboard"
                 value_key = "count"
                 unit = "form(s)"
 
-            embed = discord.Embed(
-                title=title,
-                color=discord.Color.gold(),
-                timestamp=discord.utils.utcnow()
-            )
-
             if not rows:
-                embed.description = "📭 **No data yet.** Submit and approve forms to appear here!"
-            else:
-                lines = []
-                for idx, row in enumerate(rows[:10], 1):
-                    member = interaction.guild.get_member(row['discord_id'])
-                    name = member.display_name if member else f"User {row['discord_id']}"
-                    value = row[value_key]
-                    lines.append(f"{idx}. **{name}** - {value} {unit}")
-                embed.description = "\n".join(lines)
-                embed.set_footer(text=f"Showing top {min(len(rows), 10)} out of {len(rows)}")
+                embed = discord.Embed(
+                    title=title,
+                    description="📭 **No data yet.** Submit and approve forms to appear here!",
+                    color=discord.Color.gold(),
+                    timestamp=discord.utils.utcnow()
+                )
+                await interaction.followup.send(embed=embed)
+                return
 
-            await interaction.followup.send(embed=embed)
+            view = LeaderboardView(rows, title, value_key, unit)
+            embed = view.get_page_embed(interaction.guild)
+            await interaction.followup.send(embed=embed, view=view)
 
         except Exception as e:
             logger.exception(f"Leaderboard error: {e}")
@@ -108,7 +163,6 @@ class LeaderboardStatsCog(commands.Cog):
         member: discord.Member,
         period: app_commands.Choice[str] = None
     ):
-        # Defer to prevent timeout while fetching detailed stats
         await interaction.response.defer()
 
         try:
@@ -124,7 +178,6 @@ class LeaderboardStatsCog(commands.Cog):
                 timestamp=discord.utils.utcnow()
             )
 
-            # Form counts
             counts = [
                 ("📋 Recruitments", stats.get('recruitment', 0)),
                 ("📈 Progress Reports", stats.get('progress_report', 0)),
@@ -136,14 +189,12 @@ class LeaderboardStatsCog(commands.Cog):
                 ("📜 Scrolls", stats.get('scroll_completion', 0)),
                 ("✅ Form Approvals", stats.get('approval_count', 0))
             ]
-            # Display in two columns (first 5, then next 4)
             for label, value in counts[:5]:
                 embed.add_field(name=label, value=value, inline=True)
             embed.add_field(name="\u200b", value="\u200b", inline=True)
             for label, value in counts[5:]:
                 embed.add_field(name=label, value=value, inline=True)
 
-            # Points breakdown
             breakdown = stats.get('points_breakdown', {})
             if breakdown:
                 breakdown_text = []
@@ -173,6 +224,7 @@ class LeaderboardStatsCog(commands.Cog):
                 "❌ **Failed to load statistics.** Please try again later.",
                 ephemeral=True
             )
+
 
 async def setup(bot):
     await bot.add_cog(LeaderboardStatsCog(bot))
