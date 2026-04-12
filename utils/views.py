@@ -113,15 +113,28 @@ class ApprovalView(discord.ui.View):
         row = await DBService.fetchrow(
             f"SELECT status FROM {self.table} WHERE id = $1", self.form_id
         )
-        if not row or row['status'] != 'pending':
+        if not row:
             await interaction.response.send_message(
-                "⚠️ This form is no longer pending. It may have been processed already.",
+                "⚠️ This form no longer exists.",
                 ephemeral=True
             )
             for child in self.children:
                 child.disabled = True
             await interaction.message.edit(view=self)
             return False
+
+        status = row['status']
+        # Allow interaction only for pending or held forms
+        if status not in ('pending', 'hold'):
+            await interaction.response.send_message(
+                f"⚠️ This form has been **{status}**. No further actions allowed.",
+                ephemeral=True
+            )
+            for child in self.children:
+                child.disabled = True
+            await interaction.message.edit(view=self)
+            return False
+
         return True
 
     async def _is_authorized(self, interaction: discord.Interaction) -> bool:
@@ -205,7 +218,6 @@ class ApprovalView(discord.ui.View):
             if age:
                 details += f"\n• Age: {age}"
             embed.add_field(name="Details", value=details, inline=False)
-            # Recruitment uses plain text fallback, but embed is cleaner
             if first_url:
                 embed.set_image(url=first_url)
                 if extra_count > 0:
