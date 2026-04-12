@@ -1,5 +1,6 @@
 import boto3
 import uuid
+import asyncio
 from io import BytesIO
 from botocore.exceptions import ClientError
 from config.settings import (
@@ -40,19 +41,22 @@ async def upload_image(file_bytes: bytes, filename: str) -> str:
     """
     Upload an image to Supabase Storage S3 and return the public URL.
 
-    The bucket must be public, or you must use a presigned URL.
+    This function runs the blocking upload in a thread pool to avoid
+    stalling the asyncio event loop.
     """
     if _s3_client is None:
         raise RuntimeError("S3 client not initialized. Call init_s3_client() first.")
 
-    try:
-        ext = filename.split('.')[-1].lower()
-        if ext not in ('png', 'jpg', 'jpeg', 'gif', 'webp'):
-            ext = 'png'
+    # Determine file extension
+    ext = filename.split('.')[-1].lower()
+    if ext not in ('png', 'jpg', 'jpeg', 'gif', 'webp'):
+        ext = 'png'
 
-        key = f"uploads/{uuid.uuid4()}.{ext}"
-        file_obj = BytesIO(file_bytes)
+    key = f"uploads/{uuid.uuid4()}.{ext}"
+    file_obj = BytesIO(file_bytes)
 
+    # Offload the blocking upload to a thread
+    def _do_upload():
         _s3_client.upload_fileobj(
             file_obj,
             SUPABASE_BUCKET_NAME,
@@ -60,19 +64,21 @@ async def upload_image(file_bytes: bytes, filename: str) -> str:
             ExtraArgs={'ContentType': f'image/{ext}'}
         )
 
-        # Build public URL
-        base_url = SUPABASE_ENDPOINT.replace('/storage/v1/s3', '')
-        url = f"{base_url}/storage/v1/object/public/{SUPABASE_BUCKET_NAME}/{key}"
-
-        logger.debug(f"Uploaded image: {url}")
-        return url
-
+    try:
+        await asyncio.to_thread(_do_upload)
     except ClientError as e:
         logger.exception("Supabase S3 upload failed")
         raise RuntimeError(f"Upload failed: {e.response['Error']['Message']}")
     except Exception as e:
         logger.exception("Unexpected error during upload")
         raise
+
+    # Build public URL
+    base_url = SUPABASE_ENDPOINT.replace('/storage/v1/s3', '')
+    url = f"{base_url}/storage/v1/object/public/{SUPABASE_BUCKET_NAME}/{key}"
+
+    logger.debug(f"Uploaded image: {url}")
+    return url
 
 
 async def delete_image(url: str):
@@ -82,10 +88,12 @@ async def delete_image(url: str):
     if _s3_client is None:
         raise RuntimeError("S3 client not initialized. Call init_s3_client() first.")
     try:
-        # Extract key from URL
-        # URL format: https://.../storage/v1/object/public/{bucket}/uploads/{uuid}.png
         key = url.split(f"/object/public/{SUPABASE_BUCKET_NAME}/")[-1]
-        _s3_client.delete_object(Bucket=SUPABASE_BUCKET_NAME, Key=key)
+        await asyncio.to_thread(
+            _s3_client.delete_object,
+            Bucket=SUPABASE_BUCKET_NAME,
+            Key=key
+        )
         logger.debug(f"Deleted S3 object: {key}")
     except Exception as e:
         logger.error(f"Failed to delete {url}: {e}")
