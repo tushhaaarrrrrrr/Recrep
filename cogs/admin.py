@@ -5,6 +5,7 @@ from services.db_service import DBService
 from database.connection import get_db_pool
 from utils.logger import get_logger
 import time
+import sys
 
 logger = get_logger(__name__)
 
@@ -443,6 +444,25 @@ class AdminCog(commands.Cog):
                 "❌ An error occurred while refreshing statistics.",
                 ephemeral=True
             )
+
+    @app_commands.command(
+        name="shutdown",
+        description="[Owner Only] Shut down the bot completely"
+    )
+    @app_commands.default_permissions(administrator=True)
+    async def shutdown(self, interaction: discord.Interaction):
+        """Gracefully shut down the bot. Only the bot owner can use this."""
+        if interaction.user.id != self.bot.owner_id:
+            await interaction.response.send_message(
+                "❌ Only the bot owner can use this command.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.send_message("🛑 Shutting down... Goodbye!", ephemeral=False)
+        logger.critical(f"Shutdown command issued by {interaction.user} ({interaction.user.id})")
+        await self.bot.close()
+        sys.exit(0)
 
 async def setup(bot):
     await bot.add_cog(AdminCog(bot))
