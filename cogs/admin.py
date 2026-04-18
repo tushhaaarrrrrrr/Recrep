@@ -4,6 +4,7 @@ from discord.ext import commands
 from services.db_service import DBService
 from database.connection import get_db_pool
 from utils.logger import get_logger
+from config.settings import OWNER_ID
 import time
 import sys
 
@@ -452,7 +453,7 @@ class AdminCog(commands.Cog):
     @app_commands.default_permissions(administrator=True)
     async def shutdown(self, interaction: discord.Interaction):
         """Gracefully shut down the bot. Only the bot owner can use this."""
-        if interaction.user.id != self.bot.owner_id:
+        if interaction.user.id != int(OWNER_ID):
             await interaction.response.send_message(
                 "❌ Only the bot owner can use this command.",
                 ephemeral=True
