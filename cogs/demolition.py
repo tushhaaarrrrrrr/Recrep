@@ -45,7 +45,11 @@ class DemolitionCog(commands.Cog):
         screenshot4: discord.Attachment = None,
         screenshot5: discord.Attachment = None
     ):
-        await interaction.response.defer()
+        try:
+            await interaction.response.defer()
+        except (discord.NotFound, discord.HTTPException):
+            return
+
         try:
             screenshots = [s for s in (screenshot1, screenshot2, screenshot3, screenshot4, screenshot5) if s]
             if not screenshots:
@@ -153,7 +157,11 @@ class DemolitionCog(commands.Cog):
         screenshot4: discord.Attachment = None,
         screenshot5: discord.Attachment = None
     ):
-        await interaction.response.defer()
+        try:
+            await interaction.response.defer()
+        except (discord.NotFound, discord.HTTPException):
+            return
+
         try:
             screenshots = [s for s in (screenshot1, screenshot2, screenshot3, screenshot4, screenshot5) if s]
             if not screenshots:
