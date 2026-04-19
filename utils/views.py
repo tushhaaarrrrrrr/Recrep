@@ -230,22 +230,36 @@ class ApprovalView(discord.ui.View):
 
         # Assign role
         try:
-            await member.add_roles(role, reason=f"Recruitment approved (form #{self.form_id})")
-            logger.info(f"Assigned role {role.name} to {member.display_name} ({member.id}).")
-            role_success = True
+            # Check role hierarchy
+            bot_member = community_guild.me
+            if bot_member.top_role <= role:
+                role_error = f"Bot's top role ({bot_member.top_role.name}) is not higher than the player role ({role.name})."
+                logger.error(role_error)
+            else:
+                await member.add_roles(role, reason=f"Recruitment approved (form #{self.form_id})")
+                logger.info(f"Assigned role {role.name} to {member.display_name} ({member.id}).")
+                role_success = True
         except discord.Forbidden:
-            role_error = "Bot lacks 'Manage Roles' permission in community server."
+            role_error = "Bot lacks 'Manage Roles' permission in community server (even with Admin, check role hierarchy)."
             logger.error(role_error)
         except Exception as e:
             role_error = f"Failed to assign role: {e}"
             logger.exception(role_error)
 
-        # Change nickname
+        # Change nickname to format: nickname (ingame_username)
         nickname = self.form_data.get('nickname', '').strip()
-        if nickname:
+        ingame_username = self.form_data.get('ingame_username', '').strip()
+        if nickname and ingame_username:
+            desired_nick = f"{nickname} ({ingame_username})"
+        elif nickname:
+            desired_nick = nickname
+        else:
+            desired_nick = None
+
+        if desired_nick:
             try:
-                await member.edit(nick=nickname, reason=f"Recruitment approved (form #{self.form_id})")
-                logger.info(f"Set nickname of {member.id} to '{nickname}'.")
+                await member.edit(nick=desired_nick, reason=f"Recruitment approved (form #{self.form_id})")
+                logger.info(f"Set nickname of {member.id} to '{desired_nick}'.")
                 nickname_success = True
             except discord.Forbidden:
                 nick_error = "Bot lacks 'Manage Nicknames' permission."
@@ -262,7 +276,7 @@ class ApprovalView(discord.ui.View):
             messages.append(f"❌ Role not assigned: {role_error}")
 
         if nickname_success:
-            messages.append(f"✅ Nickname set to '{nickname}'.")
+            messages.append(f"✅ Nickname set to '{desired_nick}'.")
         elif nick_error:
             messages.append(f"❌ Nickname not set: {nick_error}")
 
