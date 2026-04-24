@@ -201,30 +201,49 @@ async def async_get_activity_timeseries(granularity: str):
         span, label_fn = 8, lambda i: "This week" if i == 0 else f"{i}w ago"
         bounds = lambda i: (f"date_trunc('week',CURRENT_DATE) - INTERVAL '{i} week'", f"date_trunc('week',CURRENT_DATE) - INTERVAL '{i-1} week'")
 
-    labels, series = [], {k: [] for k in [
+    labels = []
+    periods = []
+    for i in range(span - 1, -1, -1):
+        labels.append(label_fn(i))
+        periods.append(bounds(i))
+
+    series = {k: [] for k in [
         "recruitment", "progress_report", "progress_help",
         "purchase_invoice", "demolition_report", "eviction_report",
         "scroll_completion", "reputation"
     ]}
 
-    for i in range(span - 1, -1, -1):
-        start_expr, end_expr = bounds(i)
-        labels.append(label_fn(i))
+    # Build every query coroutine up-front, then fire them all concurrently.
+    # Previously these were sequential awaits (64 round-trips for weekly),
+    # which reliably exceeded the 30-second timeout.
+    all_coros = []
+    for start_expr, end_expr in periods:
         for t in FORM_TABLES:
-            r = await DBService.fetchrow(
+            all_coros.append(DBService.fetchrow(
                 f"SELECT COUNT(*) FROM {t} WHERE status='approved' "
                 f"AND submitted_at >= {start_expr} AND submitted_at < {end_expr}"
-            )
-            series[t].append(r[0] if r else 0)
-        r_h = await DBService.fetchrow(
+            ))
+        all_coros.append(DBService.fetchrow(
             f"SELECT COUNT(*) FROM reputation_log WHERE form_type='progress_help' "
             f"AND created_at >= {start_expr} AND created_at < {end_expr}"
-        )
-        series["progress_help"].append(r_h[0] if r_h else 0)
-        r_rep = await DBService.fetchrow(
+        ))
+        all_coros.append(DBService.fetchrow(
             f"SELECT COALESCE(SUM(points),0) FROM reputation_log "
             f"WHERE created_at >= {start_expr} AND created_at < {end_expr}"
-        )
+        ))
+
+    results = await asyncio.gather(*all_coros)
+
+    # Unpack results in the same order the coroutines were appended.
+    queries_per_period = len(FORM_TABLES) + 2  # 6 form tables + progress_help + reputation
+    for period_idx in range(span):
+        base = period_idx * queries_per_period
+        for t_idx, t in enumerate(FORM_TABLES):
+            r = results[base + t_idx]
+            series[t].append(r[0] if r else 0)
+        r_h = results[base + len(FORM_TABLES)]
+        series["progress_help"].append(r_h[0] if r_h else 0)
+        r_rep = results[base + len(FORM_TABLES) + 1]
         series["reputation"].append(r_rep[0] if r_rep else 0)
 
     return {"labels": labels, "series": series}
