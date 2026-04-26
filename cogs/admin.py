@@ -2,6 +2,13 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from services.db_service import DBService
+from services.reputation_service import (
+    award_submitter_points,
+    award_helper_points,
+    award_approval_points,
+    SCROLL_POINTS,
+    REP_POINTS,
+)
 from database.connection import get_db_pool
 from utils.logger import get_logger
 from config.settings import OWNER_ID
@@ -39,6 +46,9 @@ class AdminCog(commands.Cog):
             return True
         except (discord.NotFound, discord.HTTPException):
             return False
+
+    # ── Existing configuration commands (set_approval_channel, set_log_channel, …) remain unchanged ──
+    # (I'll include them all for completeness but they are exactly as you provided.)
 
     @app_commands.command(
         name="set_approval_channel",
@@ -464,6 +474,86 @@ class AdminCog(commands.Cog):
         logger.critical(f"Shutdown command issued by {interaction.user} ({interaction.user.id})")
         await self.bot.close()
         sys.exit(0)
+
+    # ── Approve all pending forms ────────────────────────────────
+    @app_commands.command(
+        name="approve_all",
+        description="Approve all pending forms and clean up approval messages"
+    )
+    @app_commands.default_permissions(administrator=True)
+    async def approve_all(self, interaction: discord.Interaction):
+        """Bulk-approve every pending form, award reputation, and delete approval messages."""
+        if not await self._safe_defer(interaction):
+            return
+
+        # Fetch all pending forms across all tables
+        pending_forms = await DBService.get_all_pending_forms()
+        if not pending_forms:
+            await interaction.followup.send("✅ No pending forms to approve.", ephemeral=True)
+            return
+
+        approved_count = 0
+        failed_count = 0
+        messages_to_delete = []  # list of (channel_id, message_id)
+
+        # Fetch approval channel for this guild
+        config = await DBService.get_guild_config(interaction.guild_id)
+        approval_channel_id = config.get('approval_channel_id') if config else None
+
+        for form in pending_forms:
+            table = form['table']
+            form_id = form['id']
+            try:
+                # Approve the form
+                await DBService.approve_form(table, form_id, interaction.user.id)
+
+                # Award submitter points (with scroll override)
+                points_override = None
+                if table == 'scroll_completion':
+                    scroll_type = (form.get('scroll_type') or '').lower()
+                    points_override = SCROLL_POINTS.get(scroll_type, REP_POINTS.get('scroll_completion', 2))
+                await award_submitter_points(
+                    form['submitted_by'], table, form_id, points_override
+                )
+
+                # Helper points for progress reports
+                if table == 'progress_report' and form.get('helper_mentions'):
+                    await award_helper_points(form['helper_mentions'], form_id)
+
+                # Approver points
+                await award_approval_points(interaction.user.id, table, form_id)
+
+                # Queue approval message for deletion (if exists)
+                if form.get('approval_message_id') and approval_channel_id:
+                    messages_to_delete.append((approval_channel_id, form['approval_message_id']))
+
+                approved_count += 1
+            except Exception as e:
+                logger.exception(f"Failed to approve {table}#{form_id}: {e}")
+                failed_count += 1
+
+        # Delete all queued approval messages
+        deleted_msgs = 0
+        for channel_id, msg_id in messages_to_delete:
+            try:
+                channel = self.bot.get_channel(channel_id)
+                if channel:
+                    msg = await channel.fetch_message(msg_id)
+                    await msg.delete()
+                    deleted_msgs += 1
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                pass
+            except Exception as e:
+                logger.warning(f"Could not delete approval message {msg_id} in channel {channel_id}: {e}")
+
+        result_msg = (
+            f"✅ **Bulk approval complete.**\n"
+            f"Approved: {approved_count}\n"
+            f"Failed: {failed_count}\n"
+            f"Approval messages deleted: {deleted_msgs}"
+        )
+        await interaction.followup.send(result_msg, ephemeral=True)
+        logger.info(f"Bulk approval by {interaction.user.id}: {approved_count} approved, {failed_count} failed.")
 
 async def setup(bot):
     await bot.add_cog(AdminCog(bot))

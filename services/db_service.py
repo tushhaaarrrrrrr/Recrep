@@ -267,6 +267,33 @@ class DBService:
         row = await DBService.fetchrow(f"SELECT * FROM {table} WHERE id = $1", form_id)
         return dict(row) if row else None
 
+    # NEW: Bulk fetch all pending forms
+    @staticmethod
+    async def get_all_pending_forms() -> List[Dict]:
+        """Return a list of all pending forms across all tables."""
+        tables = [
+            'recruitment', 'progress_report', 'purchase_invoice',
+            'demolition_report', 'demolition_request', 'eviction_report',
+            'scroll_completion'
+        ]
+        results = []
+        for table in tables:
+            rows = await DBService.fetch(
+                f"SELECT id, submitted_by, approval_message_id, "
+                f"helper_mentions, scroll_type "
+                f"FROM {table} WHERE status = 'pending'"
+            )
+            for row in rows:
+                results.append({
+                    'table': table,
+                    'id': row['id'],
+                    'submitted_by': row['submitted_by'],
+                    'approval_message_id': row.get('approval_message_id'),
+                    'helper_mentions': row.get('helper_mentions'),
+                    'scroll_type': row.get('scroll_type'),
+                })
+        return results
+
     # Reputation and leaderboards
     @staticmethod
     async def add_reputation(staff_id: int, points: int, reason: str, form_type: str, form_id: int, created_at: datetime = None):
