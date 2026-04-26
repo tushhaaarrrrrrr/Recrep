@@ -267,31 +267,38 @@ class DBService:
         row = await DBService.fetchrow(f"SELECT * FROM {table} WHERE id = $1", form_id)
         return dict(row) if row else None
 
-    # NEW: Bulk fetch all pending forms
+    # NEW: Bulk fetch all pending forms (patched)
     @staticmethod
     async def get_all_pending_forms() -> List[Dict]:
         """Return a list of all pending forms across all tables."""
-        tables = [
-            'recruitment', 'progress_report', 'purchase_invoice',
-            'demolition_report', 'demolition_request', 'eviction_report',
-            'scroll_completion'
-        ]
+        TABLE_CONFIG = {
+            'recruitment':        ('',),
+            'progress_report':    ('helper_mentions',),
+            'purchase_invoice':   ('',),
+            'demolition_report':  ('',),
+            'demolition_request': ('',),
+            'eviction_report':    ('',),
+            'scroll_completion':  ('scroll_type',),
+        }
         results = []
-        for table in tables:
-            rows = await DBService.fetch(
-                f"SELECT id, submitted_by, approval_message_id, "
-                f"helper_mentions, scroll_type "
-                f"FROM {table} WHERE status = 'pending'"
-            )
+        for table, extras in TABLE_CONFIG.items():
+            extra_cols = ', ' + ', '.join(extras) if extras and extras[0] else ''
+            query = f"SELECT id, submitted_by, approval_message_id{extra_cols} FROM {table} WHERE status = 'pending'"
+            rows = await DBService.fetch(query)
             for row in rows:
-                results.append({
+                result = {
                     'table': table,
                     'id': row['id'],
                     'submitted_by': row['submitted_by'],
                     'approval_message_id': row.get('approval_message_id'),
-                    'helper_mentions': row.get('helper_mentions'),
-                    'scroll_type': row.get('scroll_type'),
-                })
+                    'helper_mentions': None,
+                    'scroll_type': None,
+                }
+                if 'helper_mentions' in row.keys():
+                    result['helper_mentions'] = row['helper_mentions']
+                if 'scroll_type' in row.keys():
+                    result['scroll_type'] = row['scroll_type']
+                results.append(result)
         return results
 
     # Reputation and leaderboards
