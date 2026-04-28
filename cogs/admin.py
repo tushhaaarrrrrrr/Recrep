@@ -12,6 +12,7 @@ from services.reputation_service import (
 from database.connection import get_db_pool
 from utils.logger import get_logger
 from config.settings import OWNER_ID
+from utils.views import send_approval_notification, assign_player_role_post_approval
 import time
 import sys
 
@@ -29,7 +30,6 @@ class AdminCog(commands.Cog):
         'Eviction': 'eviction_channel_id',
         'Scroll': 'scroll_channel_id'
     }
-    # Additional configurable IDs (not channels)
     _CONFIG_KEYS = {
         'Community Guild': 'community_guild_id',
         'Player Role': 'player_role_id'
@@ -40,16 +40,13 @@ class AdminCog(commands.Cog):
         self.start_time = time.time()
 
     async def _safe_defer(self, interaction: discord.Interaction, ephemeral: bool = True) -> bool:
-        """Safely defer an interaction, returning False if the interaction is already invalid."""
         try:
             await interaction.response.defer(ephemeral=ephemeral)
             return True
         except (discord.NotFound, discord.HTTPException):
             return False
 
-    # ── Existing configuration commands (set_approval_channel, set_log_channel, …) remain unchanged ──
-    # (I'll include them all for completeness but they are exactly as you provided.)
-
+    # ── Existing configuration commands (unchanged) ──
     @app_commands.command(
         name="set_approval_channel",
         description="Set the channel where pending forms are sent for approval"
@@ -91,25 +88,18 @@ class AdminCog(commands.Cog):
     )
     @app_commands.default_permissions(administrator=True)
     async def set_community_guild(self, interaction: discord.Interaction, guild_id: str):
-        """Store the community guild ID (must be a server the bot is in)."""
         try:
             guild_id_int = int(guild_id)
         except ValueError:
-            await interaction.response.send_message(
-                "❌ Invalid guild ID. Please provide a numeric ID.",
-                ephemeral=True
-            )
+            await interaction.response.send_message("❌ Invalid guild ID.", ephemeral=True)
             return
-
-        # Verify the bot is in that guild
         guild = self.bot.get_guild(guild_id_int)
         if not guild:
             await interaction.response.send_message(
-                f"❌ Bot is not a member of guild with ID `{guild_id_int}`. Invite the bot to that server first.",
+                f"❌ Bot is not a member of guild with ID `{guild_id_int}`.",
                 ephemeral=True
             )
             return
-
         await DBService.set_guild_config(interaction.guild_id, community_guild_id=guild_id_int)
         logger.info(f"Guild {interaction.guild_id}: Community guild set to {guild_id_int} ({guild.name})")
         await interaction.response.send_message(
@@ -123,34 +113,23 @@ class AdminCog(commands.Cog):
     )
     @app_commands.default_permissions(administrator=True)
     async def set_player_role(self, interaction: discord.Interaction, role_id: str):
-        """Store the player role ID (must exist in the configured community guild)."""
         try:
             role_id_int = int(role_id)
         except ValueError:
-            await interaction.response.send_message(
-                "❌ Invalid role ID. Please provide a numeric ID.",
-                ephemeral=True
-            )
+            await interaction.response.send_message("❌ Invalid role ID.", ephemeral=True)
             return
-
-        # Verify the role exists in the configured community guild
         config = await DBService.get_guild_config(interaction.guild_id)
         community_guild_id = config.get('community_guild_id') if config else None
         if not community_guild_id:
-            await interaction.response.send_message(
-                "❌ Community guild not configured. Use `/set_community_guild` first.",
-                ephemeral=True
-            )
+            await interaction.response.send_message("❌ Community guild not configured.", ephemeral=True)
             return
-
         guild = self.bot.get_guild(community_guild_id)
         if not guild:
             await interaction.response.send_message(
-                f"❌ Community guild (ID `{community_guild_id}`) not found. The bot may have been removed.",
+                f"❌ Community guild (ID `{community_guild_id}`) not found.",
                 ephemeral=True
             )
             return
-
         role = guild.get_role(role_id_int)
         if not role:
             await interaction.response.send_message(
@@ -158,7 +137,6 @@ class AdminCog(commands.Cog):
                 ephemeral=True
             )
             return
-
         await DBService.set_guild_config(interaction.guild_id, player_role_id=role_id_int)
         logger.info(f"Guild {interaction.guild_id}: Player role set to {role_id_int} ({role.name})")
         await interaction.response.send_message(
@@ -225,7 +203,6 @@ class AdminCog(commands.Cog):
                         ephemeral=True
                     )
             else:
-                # Full role list may take time; defer to avoid timeout
                 if not await self._safe_defer(interaction):
                     return
 
@@ -267,7 +244,6 @@ class AdminCog(commands.Cog):
     )
     @app_commands.default_permissions(administrator=True)
     async def view_config(self, interaction: discord.Interaction):
-        # Defer to prevent timeout while fetching config and roles
         if not await self._safe_defer(interaction):
             return
 
@@ -278,7 +254,6 @@ class AdminCog(commands.Cog):
             timestamp=discord.utils.utcnow()
         )
 
-        # Channel configuration
         channel_config = {
             "Approval Channel": config.get("approval_channel_id") if config else None,
             "Recruitment Logs": config.get("recruitment_channel_id") if config else None,
@@ -296,16 +271,10 @@ class AdminCog(commands.Cog):
                 channel_text.append(f"• {name}: {channel.mention if channel else f'`{chan_id}` (deleted)'}")
             else:
                 channel_text.append(f"• {name}: ❌ Not set")
-        embed.add_field(
-            name="Log Channels",
-            value="\n".join(channel_text),
-            inline=False
-        )
+        embed.add_field(name="Log Channels", value="\n".join(channel_text), inline=False)
 
-        # Community configuration
         community_guild_id = config.get('community_guild_id') if config else None
         player_role_id = config.get('player_role_id') if config else None
-
         comm_text = []
         if community_guild_id:
             guild = self.bot.get_guild(community_guild_id)
@@ -324,13 +293,8 @@ class AdminCog(commands.Cog):
                 comm_text.append(f"• Player Role: `{player_role_id}` (guild not set)")
         else:
             comm_text.append("• Player Role: ❌ Not set")
-        embed.add_field(
-            name="Community Server Integration",
-            value="\n".join(comm_text),
-            inline=False
-        )
+        embed.add_field(name="Community Server Integration", value="\n".join(comm_text), inline=False)
 
-        # Internal roles
         for role_name in self._VALID_ROLES:
             users = await DBService.list_users_with_role(role_name)
             if users:
@@ -345,17 +309,9 @@ class AdminCog(commands.Cog):
                     mentions_str = ", ".join(truncated)
                     if remaining > 0:
                         mentions_str += f", and {remaining} more"
-                embed.add_field(
-                    name=f"**{role_name.capitalize()}**",
-                    value=mentions_str,
-                    inline=False
-                )
+                embed.add_field(name=f"**{role_name.capitalize()}**", value=mentions_str, inline=False)
             else:
-                embed.add_field(
-                    name=f"**{role_name.capitalize()}**",
-                    value="*None*",
-                    inline=False
-                )
+                embed.add_field(name=f"**{role_name.capitalize()}**", value="*None*", inline=False)
 
         await interaction.followup.send(embed=embed, ephemeral=True)
 
@@ -365,7 +321,6 @@ class AdminCog(commands.Cog):
     )
     @app_commands.default_permissions(administrator=True)
     async def status_command(self, interaction: discord.Interaction):
-        """Display bot status, uptime, and database connection health."""
         if not await self._safe_defer(interaction):
             return
 
@@ -376,7 +331,6 @@ class AdminCog(commands.Cog):
         seconds = uptime_seconds % 60
         uptime_str = f"{days}d {hours}h {minutes}m {seconds}s"
 
-        # Check database connectivity using the existing pool
         db_ok = False
         try:
             pool = await get_db_pool()
@@ -406,11 +360,9 @@ class AdminCog(commands.Cog):
     )
     @app_commands.default_permissions(administrator=True)
     async def recalculate_reputation(self, interaction: discord.Interaction):
-        """Recalculate reputation for all staff members."""
         if not await self._safe_defer(interaction):
             return
         try:
-            # Sum points per staff_id from reputation_log
             rows = await DBService.fetch(
                 "SELECT staff_id, SUM(points) as total FROM reputation_log GROUP BY staff_id"
             )
@@ -440,7 +392,6 @@ class AdminCog(commands.Cog):
     )
     @app_commands.default_permissions(administrator=True)
     async def refresh_stats(self, interaction: discord.Interaction):
-        """Rebuild reputation_log and staff_member.reputation from scratch using approved forms."""
         if not await self._safe_defer(interaction):
             return
         try:
@@ -462,98 +413,131 @@ class AdminCog(commands.Cog):
     )
     @app_commands.default_permissions(administrator=True)
     async def shutdown(self, interaction: discord.Interaction):
-        """Gracefully shut down the bot. Only the bot owner can use this."""
         if interaction.user.id != int(OWNER_ID):
             await interaction.response.send_message(
                 "❌ Only the bot owner can use this command.",
                 ephemeral=True
             )
             return
-
         await interaction.response.send_message("🛑 Shutting down... Goodbye!", ephemeral=False)
         logger.critical(f"Shutdown command issued by {interaction.user} ({interaction.user.id})")
         await self.bot.close()
         sys.exit(0)
 
-    # ── Approve all pending forms ────────────────────────────────
+    # ── Patched approve_all ────────────────────────────────────────────────
     @app_commands.command(
         name="approve_all",
-        description="Approve all pending forms and clean up approval messages"
+        description="Approve all pending forms, notify log channels, assign roles, and clean up messages"
     )
     @app_commands.default_permissions(administrator=True)
     async def approve_all(self, interaction: discord.Interaction):
-        """Bulk-approve every pending form, award reputation, and delete approval messages."""
         if not await self._safe_defer(interaction):
             return
 
-        # Fetch all pending forms across all tables
         pending_forms = await DBService.get_all_pending_forms()
         if not pending_forms:
             await interaction.followup.send("✅ No pending forms to approve.", ephemeral=True)
             return
 
+        guild = interaction.guild
+        approver = interaction.user
         approved_count = 0
         failed_count = 0
-        messages_to_delete = []  # list of (channel_id, message_id)
+        deleted_approval = 0
+        deleted_confirm = 0
 
-        # Fetch approval channel for this guild
-        config = await DBService.get_guild_config(interaction.guild_id)
+        # Get approval channel from guild config
+        config = await DBService.get_guild_config(guild.id)
         approval_channel_id = config.get('approval_channel_id') if config else None
 
         for form in pending_forms:
             table = form['table']
             form_id = form['id']
             try:
-                # Approve the form
-                await DBService.approve_form(table, form_id, interaction.user.id)
+                # 1. Approve the form
+                await DBService.approve_form(table, form_id, approver.id)
 
-                # Award submitter points (with scroll override)
+                # 2. Fetch full form data (needed for points, notification, role)
+                form_data = await DBService.get_full_form_data(table, form_id)
+                if not form_data:
+                    raise ValueError("Form data not found after approval")
+
+                # 3. Award reputation
                 points_override = None
                 if table == 'scroll_completion':
-                    scroll_type = (form.get('scroll_type') or '').lower()
+                    scroll_type = (form_data.get('scroll_type') or '').lower()
                     points_override = SCROLL_POINTS.get(scroll_type, REP_POINTS.get('scroll_completion', 2))
-                await award_submitter_points(
-                    form['submitted_by'], table, form_id, points_override
+                await award_submitter_points(form_data['submitted_by'], table, form_id, points_override)
+
+                if table == 'progress_report' and form_data.get('helper_mentions'):
+                    await award_helper_points(form_data['helper_mentions'], form_id)
+
+                await award_approval_points(approver.id, table, form_id)
+
+                # 4. Post-approval tasks: notification + role assignment
+                thread_prefix = {
+                    'recruitment': 'Recruitments', 'progress_report': 'Progress Reports',
+                    'purchase_invoice': 'Invoices', 'demolition_report': 'Demolitions',
+                    'demolition_request': 'Demolition Requests', 'eviction_report': 'Evictions',
+                    'scroll_completion': 'Scrolls'
+                }.get(table, table.replace('_', ' ').title())
+
+                await send_approval_notification(
+                    bot=self.bot,
+                    guild=guild,
+                    table=table,
+                    form_id=form_id,
+                    form_data=form_data,
+                    submitter_id=form_data['submitted_by'],
+                    approver=approver,
+                    channel_config_key=f"{table}_channel_id",
+                    thread_prefix=thread_prefix
                 )
 
-                # Helper points for progress reports
-                if table == 'progress_report' and form.get('helper_mentions'):
-                    await award_helper_points(form['helper_mentions'], form_id)
+                if table == 'recruitment':
+                    await assign_player_role_post_approval(
+                        bot=self.bot,
+                        guild_id=guild.id,
+                        form_id=form_id,
+                        form_data=form_data
+                    )
 
-                # Approver points
-                await award_approval_points(interaction.user.id, table, form_id)
-
-                # Queue approval message for deletion (if exists)
+                # 5. Delete approval message from approval channel
                 if form.get('approval_message_id') and approval_channel_id:
-                    messages_to_delete.append((approval_channel_id, form['approval_message_id']))
+                    try:
+                        channel = self.bot.get_channel(approval_channel_id)
+                        if channel:
+                            msg = await channel.fetch_message(form['approval_message_id'])
+                            await msg.delete()
+                            deleted_approval += 1
+                    except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                        pass
+
+                # 6. Delete submitter's confirmation message
+                if form.get('confirmation_msg_id') and form.get('confirmation_channel_id'):
+                    try:
+                        channel = self.bot.get_channel(form['confirmation_channel_id'])
+                        if channel:
+                            msg = await channel.fetch_message(form['confirmation_msg_id'])
+                            await msg.delete()
+                            deleted_confirm += 1
+                    except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                        pass
 
                 approved_count += 1
             except Exception as e:
-                logger.exception(f"Failed to approve {table}#{form_id}: {e}")
+                logger.exception(f"Failed to process {table}#{form_id}: {e}")
                 failed_count += 1
-
-        # Delete all queued approval messages
-        deleted_msgs = 0
-        for channel_id, msg_id in messages_to_delete:
-            try:
-                channel = self.bot.get_channel(channel_id)
-                if channel:
-                    msg = await channel.fetch_message(msg_id)
-                    await msg.delete()
-                    deleted_msgs += 1
-            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
-                pass
-            except Exception as e:
-                logger.warning(f"Could not delete approval message {msg_id} in channel {channel_id}: {e}")
 
         result_msg = (
             f"✅ **Bulk approval complete.**\n"
-            f"Approved: {approved_count}\n"
-            f"Failed: {failed_count}\n"
-            f"Approval messages deleted: {deleted_msgs}"
+            f"Approved: {approved_count}  |  Failed: {failed_count}\n"
+            f"Approval embeds deleted: {deleted_approval}\n"
+            f"Submitter confirmations deleted: {deleted_confirm}"
         )
         await interaction.followup.send(result_msg, ephemeral=True)
-        logger.info(f"Bulk approval by {interaction.user.id}: {approved_count} approved, {failed_count} failed.")
+        logger.info(f"Bulk approval by {approver.id}: {approved_count} approved, {failed_count} failed.")
+
 
 async def setup(bot):
     await bot.add_cog(AdminCog(bot))

@@ -1,4 +1,5 @@
 import discord
+import asyncpg
 from discord import app_commands
 from discord.ext import commands
 from services.db_service import DBService
@@ -62,7 +63,7 @@ class LookupView(discord.ui.View):
 
 
 class LookupCog(commands.Cog):
-    """Commands to look up recruitments and invoices."""
+    """Commands to look up recruitments and invoices with full details."""
 
     _TABLE_PREFIX = {
         'recruitment': 'rec',
@@ -79,6 +80,49 @@ class LookupCog(commands.Cog):
             return True
         return interaction.user.guild_permissions.manage_guild
 
+    def _format_record(self, table: str, row: asyncpg.Record, prefix: str) -> str:
+        """Build a detailed, human-readable string from all columns of a form row."""
+        display_id = f"{prefix}_{row['id']}"
+        lines = []
+        # Fields to skip (internal IDs, timestamps handled separately)
+        skip_fields = {
+            'id', 'submitted_by', 'submitted_at', 'status', 'approved_by', 'approved_at',
+            'confirmation_msg_id', 'confirmation_channel_id', 'approval_message_id',
+            'thread_message_id'
+        }
+
+        # Add submission date at the top
+        submitted = row.get('submitted_at')
+        if submitted and hasattr(submitted, 'strftime'):
+            lines.append(f"**Submitted:** {submitted.strftime('%Y-%m-%d %H:%M UTC')}")
+
+        # Loop through every column and add if not empty/skipped
+        for key in row.keys():
+            if key in skip_fields:
+                continue
+            value = row[key]
+            if value is None or (isinstance(value, str) and value.strip() == ''):
+                continue
+
+            # Format booleans
+            if isinstance(value, bool):
+                value = 'Yes' if value else 'No'
+
+            # Handle screenshot URLs specially (show count, not full URLs)
+            if key == 'screenshot_urls' and isinstance(value, str):
+                urls = [u for u in value.split(',') if u.strip()]
+                value = f"{len(urls)} screenshot(s)"
+            elif isinstance(value, str) and len(value) > 100:
+                # Truncate very long text fields for readability
+                value = value[:100] + "…"
+
+            label = key.replace('_', ' ').title()
+            lines.append(f"**{label}:** {value}")
+
+        if not lines:
+            lines.append("(no additional details)")
+        return "\n".join(lines)
+
     @app_commands.command(
         name="lookup_recruitment",
         description="Search recruitments by in‑game name or Discord username"
@@ -87,7 +131,6 @@ class LookupCog(commands.Cog):
         query="In‑game name or Discord username/mention to search for"
     )
     async def lookup_recruitment(self, interaction: discord.Interaction, query: str):
-        """Look up recruitment forms matching the given name or Discord mention."""
         await interaction.response.defer(ephemeral=True)
 
         if not await self._is_authorized(interaction):
@@ -98,31 +141,17 @@ class LookupCog(commands.Cog):
             return
 
         # Extract user ID if query is a mention
-        user_id = None
         mention_match = re.search(r'<@!?(\d+)>', query)
         if mention_match:
-            user_id = int(mention_match.group(1))
-            # If we have a user ID, search by that ID in discord_username field
-            # We'll match on the raw ID or the mention format
-            search_term = str(user_id)
+            search_term = str(int(mention_match.group(1)))
         else:
             search_term = query.strip()
 
-        # Build SQL condition
-        # Search in ingame_username or discord_username (case-insensitive)
-        condition = """
-            (ingame_username ILIKE $1 OR discord_username ILIKE $1)
-        """
         pattern = f"%{search_term}%"
-
         rows = await DBService.fetch(
-            f"""
-            SELECT id, submitted_by, submitted_at, status, ingame_username, discord_username, nickname, plots
-            FROM recruitment
-            WHERE {condition}
-            ORDER BY submitted_at DESC
-            LIMIT 50
-            """,
+            "SELECT * FROM recruitment "
+            "WHERE (ingame_username ILIKE $1 OR discord_username ILIKE $1) "
+            "ORDER BY submitted_at DESC LIMIT 50",
             pattern
         )
 
@@ -135,21 +164,12 @@ class LookupCog(commands.Cog):
 
         results = []
         for row in rows:
-            prefix = self._TABLE_PREFIX['recruitment']
-            display_id = f"{prefix}_{row['id']}"
-            submitted_at = row['submitted_at'].strftime('%Y-%m-%d')
-            desc_lines = [
-                f"**Player:** {row['nickname']} ({row['ingame_username']})",
-                f"**Plots:** {row['plots']}",
-                f"**Submitted:** {submitted_at}",
-            ]
-            if row['discord_username']:
-                desc_lines.append(f"**Discord:** {row['discord_username']}")
+            desc = self._format_record('recruitment', row, 'rec')
             results.append({
                 'form_type': 'Recruitment',
-                'display_id': display_id,
+                'display_id': f"rec_{row['id']}",
                 'status': row['status'],
-                'description': '\n'.join(desc_lines)
+                'description': desc,
             })
 
         view = LookupView(results, f"Recruitment search results for '{query}'")
@@ -164,7 +184,6 @@ class LookupCog(commands.Cog):
         ingame_name="Buyer's Minecraft username (partial match supported)"
     )
     async def lookup_invoice(self, interaction: discord.Interaction, ingame_name: str):
-        """Look up purchase invoices matching the given buyer in‑game name."""
         await interaction.response.defer(ephemeral=True)
 
         if not await self._is_authorized(interaction):
@@ -176,14 +195,9 @@ class LookupCog(commands.Cog):
 
         pattern = f"%{ingame_name.strip()}%"
         rows = await DBService.fetch(
-            """
-            SELECT id, submitted_by, submitted_at, status, purchasee_nickname, purchasee_ingame,
-                   purchase_type, amount_deposited, num_plots, total_plots, banner_color, shop_number
-            FROM purchase_invoice
-            WHERE purchasee_ingame ILIKE $1
-            ORDER BY submitted_at DESC
-            LIMIT 50
-            """,
+            "SELECT * FROM purchase_invoice "
+            "WHERE purchasee_ingame ILIKE $1 "
+            "ORDER BY submitted_at DESC LIMIT 50",
             pattern
         )
 
@@ -196,24 +210,12 @@ class LookupCog(commands.Cog):
 
         results = []
         for row in rows:
-            prefix = self._TABLE_PREFIX['purchase_invoice']
-            display_id = f"{prefix}_{row['id']}"
-            submitted_at = row['submitted_at'].strftime('%Y-%m-%d')
-            desc_lines = [
-                f"**Buyer:** {row['purchasee_nickname']} ({row['purchasee_ingame']})",
-                f"**Type:** {row['purchase_type']}",
-                f"**Amount:** {row['amount_deposited']} coins",
-                f"**Submitted:** {submitted_at}",
-            ]
-            if row['num_plots']:
-                desc_lines.append(f"**Plots:** {row['num_plots']} (total: {row['total_plots']})")
-            if row['banner_color']:
-                desc_lines.append(f"**Mall Shop:** {row['banner_color']} #{row['shop_number']}")
+            desc = self._format_record('purchase_invoice', row, 'inv')
             results.append({
                 'form_type': 'Invoice',
-                'display_id': display_id,
+                'display_id': f"inv_{row['id']}",
                 'status': row['status'],
-                'description': '\n'.join(desc_lines)
+                'description': desc,
             })
 
         view = LookupView(results, f"Invoice search results for '{ingame_name}'")

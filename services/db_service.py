@@ -267,38 +267,31 @@ class DBService:
         row = await DBService.fetchrow(f"SELECT * FROM {table} WHERE id = $1", form_id)
         return dict(row) if row else None
 
-    # NEW: Bulk fetch all pending forms (patched)
+    # Bulk fetch all pending forms (patched – returns confirmation IDs for cleanup)
     @staticmethod
     async def get_all_pending_forms() -> List[Dict]:
-        """Return a list of all pending forms across all tables."""
-        TABLE_CONFIG = {
-            'recruitment':        ('',),
-            'progress_report':    ('helper_mentions',),
-            'purchase_invoice':   ('',),
-            'demolition_report':  ('',),
-            'demolition_request': ('',),
-            'eviction_report':    ('',),
-            'scroll_completion':  ('scroll_type',),
-        }
+        """Return a list of all pending forms with IDs needed for cleanup."""
+        tables = [
+            'recruitment', 'progress_report', 'purchase_invoice',
+            'demolition_report', 'demolition_request', 'eviction_report',
+            'scroll_completion'
+        ]
         results = []
-        for table, extras in TABLE_CONFIG.items():
-            extra_cols = ', ' + ', '.join(extras) if extras and extras[0] else ''
-            query = f"SELECT id, submitted_by, approval_message_id{extra_cols} FROM {table} WHERE status = 'pending'"
-            rows = await DBService.fetch(query)
+        for table in tables:
+            rows = await DBService.fetch(
+                f"SELECT id, submitted_by, approval_message_id, "
+                f"confirmation_msg_id, confirmation_channel_id "
+                f"FROM {table} WHERE status = 'pending'"
+            )
             for row in rows:
-                result = {
+                results.append({
                     'table': table,
                     'id': row['id'],
                     'submitted_by': row['submitted_by'],
-                    'approval_message_id': row.get('approval_message_id'),
-                    'helper_mentions': None,
-                    'scroll_type': None,
-                }
-                if 'helper_mentions' in row.keys():
-                    result['helper_mentions'] = row['helper_mentions']
-                if 'scroll_type' in row.keys():
-                    result['scroll_type'] = row['scroll_type']
-                results.append(result)
+                    'approval_message_id': row['approval_message_id'],
+                    'confirmation_msg_id': row.get('confirmation_msg_id'),
+                    'confirmation_channel_id': row.get('confirmation_channel_id'),
+                })
         return results
 
     # Reputation and leaderboards
