@@ -8,12 +8,52 @@ from config.points import REP_POINTS, SCROLL_POINTS
 
 logger = get_logger(__name__)
 
+# ── Allowed tables and fields for safe UPDATE ──────────────────────────────
+ALLOWED_TABLES = {
+    'recruitment', 'progress_report', 'purchase_invoice',
+    'demolition_report', 'demolition_request', 'eviction_report',
+    'scroll_completion'
+}
+ALLOWED_FIELDS = {
+    'recruitment': {
+        'ingame_username', 'discord_username', 'age', 'nickname', 'plots',
+        'screenshot_urls',
+    },
+    'progress_report': {
+        'project_name', 'time_spent', 'helper_mentions', 'screenshot_urls',
+    },
+    'purchase_invoice': {
+        'purchasee_nickname', 'purchasee_ingame', 'purchase_type',
+        'amount_deposited', 'num_plots', 'total_plots', 'banner_color',
+        'shop_number', 'screenshot_urls',
+    },
+    'demolition_report': {
+        'ingame_username', 'removed', 'stashed_items', 'screenshot_urls',
+    },
+    'demolition_request': {
+        'ingame_username', 'reason', 'screenshot_urls',
+    },
+    'eviction_report': {
+        'ingame_owner', 'items_stored', 'inactivity_period', 'screenshot_urls',
+    },
+    'scroll_completion': {
+        'scroll_type', 'items_stored', 'screenshot_urls',
+    },
+}
 
+
+# ── Mention helpers ────────────────────────────────────────────────────────
 def extract_user_id_from_mention(mention: str) -> int:
+    """Return the **first** Discord user ID found in a mention string, or None."""
     match = re.search(r'<@!?(\d+)>', mention)
     if match:
         return int(match.group(1))
     return None
+
+
+def extract_all_user_ids_from_mention(mention: str) -> List[int]:
+    """Return **all** Discord user IDs found in a mention string (for multi‑helper)."""
+    return [int(m) for m in re.findall(r'<@!?(\d+)>', mention)]
 
 
 class DBService:
@@ -219,21 +259,62 @@ class DBService:
         )
         return row['id']
 
-    # Approval actions
+    # ── Approval actions (atomic, with audit) ──────────────────────────────
     @staticmethod
-    async def approve_form(table: str, form_id: int, approver_id: int):
-        await DBService.execute(
-            f"UPDATE {table} SET status = 'approved', approved_by = $1, approved_at = NOW() WHERE id = $2",
+    async def approve_form(table: str, form_id: int, approver_id: int) -> bool:
+        """
+        Atomically approve a form that is still 'pending'.
+        Returns True if the row was updated, False if it was already processed.
+        """
+        result = await DBService.execute(
+            f"UPDATE {table} SET status = 'approved', approved_by = $1, approved_at = NOW() "
+            f"WHERE id = $2 AND status = 'pending'",
             approver_id, form_id
         )
+        # asyncpg returns the command tag (e.g. 'UPDATE 1'); we parse the count.
+        # We'll use execute and assume 0 means no row matched.
+        # More precise: use fetchrow with RETURNING, but for simplicity:
+        # We'll re-query after update, but that's not atomic. Better to use RETURNING.
+        # Actually let's use fetchrow directly.
+        row = await DBService.fetchrow(
+            f"UPDATE {table} SET status = 'approved', approved_by = $1, approved_at = NOW() "
+            f"WHERE id = $2 AND status = 'pending' RETURNING id",
+            approver_id, form_id
+        )
+        return row is not None
 
     @staticmethod
-    async def deny_form(table: str, form_id: int):
-        await DBService.execute(f"UPDATE {table} SET status = 'denied' WHERE id = $1", form_id)
+    async def deny_form(table: str, form_id: int, denier_id: int = None) -> bool:
+        """
+        Atomically deny a form that is still 'pending'.
+        Returns True if the row was updated, False if already processed.
+        denier_id is optional for backward compatibility; set to None if not tracked.
+        """
+        if denier_id is not None:
+            row = await DBService.fetchrow(
+                f"UPDATE {table} SET status = 'denied', denied_by = $1, denied_at = NOW() "
+                f"WHERE id = $2 AND status = 'pending' RETURNING id",
+                denier_id, form_id
+            )
+        else:
+            row = await DBService.fetchrow(
+                f"UPDATE {table} SET status = 'denied', denied_at = NOW() "
+                f"WHERE id = $1 AND status = 'pending' RETURNING id",
+                form_id
+            )
+        return row is not None
 
     @staticmethod
-    async def hold_form(table: str, form_id: int):
-        await DBService.execute(f"UPDATE {table} SET status = 'hold' WHERE id = $1", form_id)
+    async def hold_form(table: str, form_id: int) -> bool:
+        """
+        Atomically put a form on hold if it is 'pending'.
+        Returns True if updated, False if already processed.
+        """
+        row = await DBService.fetchrow(
+            f"UPDATE {table} SET status = 'hold' WHERE id = $1 AND status = 'pending' RETURNING id",
+            form_id
+        )
+        return row is not None
 
     @staticmethod
     async def get_pending_form(table: str, form_id: int) -> Optional[Dict]:
@@ -267,7 +348,7 @@ class DBService:
         row = await DBService.fetchrow(f"SELECT * FROM {table} WHERE id = $1", form_id)
         return dict(row) if row else None
 
-    # Bulk fetch all pending forms (patched – returns confirmation IDs for cleanup)
+    # Bulk fetch all pending forms (fault‑isolated)
     @staticmethod
     async def get_all_pending_forms() -> List[Dict]:
         """Return a list of all pending forms with IDs needed for cleanup."""
@@ -278,20 +359,27 @@ class DBService:
         ]
         results = []
         for table in tables:
-            rows = await DBService.fetch(
-                f"SELECT id, submitted_by, approval_message_id, "
-                f"confirmation_msg_id, confirmation_channel_id "
-                f"FROM {table} WHERE status = 'pending'"
-            )
-            for row in rows:
-                results.append({
-                    'table': table,
-                    'id': row['id'],
-                    'submitted_by': row['submitted_by'],
-                    'approval_message_id': row['approval_message_id'],
-                    'confirmation_msg_id': row.get('confirmation_msg_id'),
-                    'confirmation_channel_id': row.get('confirmation_channel_id'),
-                })
+            try:
+                rows = await DBService.fetch(
+                    f"SELECT id, submitted_by, approval_message_id, "
+                    f"confirmation_msg_id, confirmation_channel_id, "
+                    f"resend_confirmation_msg_id, resend_confirmation_channel_id "
+                    f"FROM {table} WHERE status = 'pending'"
+                )
+                for row in rows:
+                    results.append({
+                        'table': table,
+                        'id': row['id'],
+                        'submitted_by': row['submitted_by'],
+                        'approval_message_id': row['approval_message_id'],
+                        'confirmation_msg_id': row.get('confirmation_msg_id'),
+                        'confirmation_channel_id': row.get('confirmation_channel_id'),
+                        'resend_confirmation_msg_id': row.get('resend_confirmation_msg_id'),
+                        'resend_confirmation_channel_id': row.get('resend_confirmation_channel_id'),
+                    })
+            except Exception as e:
+                logger.error(f"Failed to fetch pending forms from {table}: {e}")
+                continue
         return results
 
     # Reputation and leaderboards
@@ -556,15 +644,15 @@ class DBService:
                     created_at=row['approved_at']
                 )
 
-        # Process progress_help from helper mentions (use progress report's submitted_at)
+        # Process progress_help from helper mentions (multi‑helper fix #12)
         help_rows = await DBService.fetch(
             "SELECT id, helper_mentions, submitted_at FROM progress_report "
             "WHERE status = 'approved' AND helper_mentions IS NOT NULL"
         )
         logger.info(f"Processing {len(help_rows)} helper mentions ({REP_POINTS['progress_help']} pts each)")
         for row in help_rows:
-            helper_id = extract_user_id_from_mention(row['helper_mentions'])
-            if helper_id:
+            helper_ids = extract_all_user_ids_from_mention(row['helper_mentions'])
+            for helper_id in helper_ids:
                 await DBService.add_reputation(
                     helper_id, REP_POINTS['progress_help'],
                     f"Helped in progress report {row['id']}", 'progress_help', row['id'],
@@ -612,9 +700,11 @@ class DBService:
         )
         return [dict(row) for row in rows]
 
-    # Form editing support
+    # Form editing support (safe – SQL injection fixed)
     @staticmethod
     async def get_form_by_id(table: str, form_id: int) -> Optional[tuple]:
+        if table not in ALLOWED_TABLES:
+            raise ValueError(f"Invalid table: {table}")
         row = await DBService.fetchrow(f"SELECT status, submitted_by FROM {table} WHERE id = $1", form_id)
         if row:
             return (row['status'], row['submitted_by'])
@@ -622,5 +712,9 @@ class DBService:
 
     @staticmethod
     async def update_form_field(table: str, form_id: int, field: str, value):
+        if table not in ALLOWED_TABLES:
+            raise ValueError(f"Invalid table: {table}")
+        if field not in ALLOWED_FIELDS.get(table, set()):
+            raise ValueError(f"Invalid field '{field}' for table '{table}'")
         query = f"UPDATE {table} SET {field} = $1 WHERE id = $2"
         await DBService.execute(query, value, form_id)

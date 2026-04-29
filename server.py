@@ -5,7 +5,9 @@ import asyncio
 import threading
 import subprocess
 import psutil
+import fcntl                  # for atomic file locking
 from datetime import datetime, timezone
+from pathlib import Path
 
 from flask import Flask, jsonify, request, render_template_string
 from flask_socketio import SocketIO, emit
@@ -14,13 +16,16 @@ from services.db_service import DBService
 from database.connection import init_db_pool, close_db_pool
 from utils.logger import get_logger
 
-BOT_SCRIPT  = "main.py"
-PID_FILE    = "bot.pid"
-LOG_FILE    = "bot.log"
-VENV_PYTHON = sys.executable
+BOT_SCRIPT    = "main.py"
+PID_FILE      = "bot.pid"
+LOCK_FILE     = "bot.lock"          # prevents duplicate start races
+READY_FILE    = "bot.ready"         # written by main.py on_ready, deleted on close
+LOG_FILE      = "bot.log"
+VENV_PYTHON   = sys.executable
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "replace-this-in-production")
+# NEVER fall back to a hard-coded key – fail hard if env is missing
+app.config["SECRET_KEY"] = os.environ["SECRET_KEY"]
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 logger = get_logger(__name__)
@@ -28,10 +33,12 @@ logger = get_logger(__name__)
 # ── Async event loop ──────────────────────────────────────────────────────────
 _db_pool    = None
 _event_loop = None
+_pool_ready = threading.Event()
 
 async def _init_global_pool():
     global _db_pool
     _db_pool = await init_db_pool()
+    _pool_ready.set()
 
 def _start_async_loop():
     global _event_loop
@@ -47,7 +54,9 @@ def run_async(coro):
 
 _loop_thread = threading.Thread(target=_start_async_loop, daemon=True)
 _loop_thread.start()
-time.sleep(0.5)
+# Wait properly for the pool to be ready
+if not _pool_ready.wait(timeout=30):
+    raise RuntimeError("Database pool did not initialise within 30 seconds")
 
 # ── Bot process management ────────────────────────────────────────────────────
 def _get_bot_process():
@@ -69,45 +78,101 @@ def _get_bot_process():
             os.remove(PID_FILE)
         return None
 
+def _find_bot_process():
+    """Return psutil.Process if *any* running process looks like our bot."""
+    for proc in psutil.process_iter(['pid', 'cmdline']):
+        try:
+            cmdline = proc.info['cmdline']
+            if cmdline and len(cmdline) >= 2 and BOT_SCRIPT in cmdline[1]:
+                return proc
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    return None
+
+def _ensure_pid_file(proc):
+    try:
+        with open(PID_FILE, "w") as f:
+            f.write(str(proc.pid))
+    except Exception:
+        pass
+
 def get_bot_status():
-    proc = _get_bot_process()
+    # First try the PID file (fastest)
+    proc = _get_bot_process() if os.path.exists(PID_FILE) else None
+    if proc is None:
+        # Fallback to process scan
+        proc = _find_bot_process()
+        if proc is not None:
+            _ensure_pid_file(proc)
+
     if proc is None:
         return {"running": False, "pid": None, "uptime": None}
+
+    # Also check whether the bot is actually connected to Discord
+    connected = os.path.exists(READY_FILE)
+    if not connected:
+        return {"running": True, "pid": proc.pid, "uptime": "...", "connected": False}
+
     secs   = int(time.time() - proc.create_time())
     uptime = f"{secs//86400}d {(secs%86400)//3600}h {(secs%3600)//60}m {secs%60}s"
-    return {"running": True, "pid": proc.pid, "uptime": uptime}
+    return {"running": True, "pid": proc.pid, "uptime": uptime, "connected": True}
 
 def start_bot():
-    if _get_bot_process():
-        return False, "Bot is already running."
-    log_file = open(LOG_FILE, "a")
+    # Atomically acquire a lock to prevent double-start races
+    lock_file = open(LOCK_FILE, "w")
     try:
-        proc = subprocess.Popen(
-            [VENV_PYTHON, BOT_SCRIPT],
-            stdout=log_file, stderr=subprocess.STDOUT, start_new_session=True
-        )
-    except Exception as e:
-        log_file.close()
-        return False, f"Failed to start bot: {e}"
-    with open(PID_FILE, "w") as f:
-        f.write(str(proc.pid))
-    return True, f"Bot started (PID {proc.pid})."
+        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        lock_file.close()
+        return False, "Bot is already starting or running."
+
+    try:
+        existing = _find_bot_process()
+        if existing:
+            _ensure_pid_file(existing)
+            return False, "Bot is already running."
+
+        log_file = open(LOG_FILE, "a")
+        try:
+            proc = subprocess.Popen(
+                [VENV_PYTHON, BOT_SCRIPT],
+                stdout=log_file, stderr=subprocess.STDOUT, start_new_session=True
+            )
+        finally:
+            log_file.close()   # fix #7 – never leak file handles
+
+        with open(PID_FILE, "w") as f:
+            f.write(str(proc.pid))
+        return True, f"Bot started (PID {proc.pid})"
+    finally:
+        fcntl.flock(lock_file, fcntl.LOCK_UN)
+        lock_file.close()
 
 def stop_bot():
-    proc = _get_bot_process()
-    if not proc:
+    proc = _get_bot_process() if os.path.exists(PID_FILE) else None
+    if proc is None:
+        proc = _find_bot_process()
+
+    if proc is None:
         return False, "Bot is not running."
+
     proc.terminate()
-    time.sleep(2)
-    if proc.is_running():
+    try:
+        proc.wait(timeout=10)          # fix #8 – give graceful shutdown a chance
+    except psutil.TimeoutExpired:
         proc.kill()
+
     if os.path.exists(PID_FILE):
         os.remove(PID_FILE)
+    if os.path.exists(READY_FILE):
+        os.remove(READY_FILE)
     return True, "Bot stopped."
 
 def restart_bot():
-    stop_bot()
-    time.sleep(2)
+    ok, msg = stop_bot()
+    if not ok and "not running" not in msg:
+        return False, f"Stop failed: {msg}"
+    time.sleep(2)   # brief pause for sockets to release
     return start_bot()
 
 def reset_bot():
@@ -117,8 +182,19 @@ def reset_bot():
         subprocess.run([VENV_PYTHON, "reset_s3.py"], check=True)
     except subprocess.CalledProcessError as e:
         return False, f"Reset failed: {e}"
-    start_bot()
-    return True, "Database and S3 reset, bot restarted."
+    return start_bot()
+
+# ── Watchdog thread – auto-restart bot if it crashes ────────────────────────
+def _watchdog_thread():
+    """Check bot health every 30 seconds, restart if dead."""
+    while True:
+        time.sleep(30)
+        if not _find_bot_process():
+            logger.warning("Bot process missing – watchdog restarting.")
+            start_bot()
+
+_watchdog = threading.Thread(target=_watchdog_thread, daemon=True)
+_watchdog.start()
 
 # ── Data helpers ──────────────────────────────────────────────────────────────
 FORM_TABLES = [

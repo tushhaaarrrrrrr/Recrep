@@ -12,7 +12,7 @@ from services.reputation_service import (
 from database.connection import get_db_pool
 from utils.logger import get_logger
 from config.settings import OWNER_ID
-from utils.views import send_approval_notification, assign_player_role_post_approval
+from utils.views import send_approval_notification, assign_player_role_post_approval, ApprovalView
 import time
 import sys
 
@@ -33,6 +33,17 @@ class AdminCog(commands.Cog):
     _CONFIG_KEYS = {
         'Community Guild': 'community_guild_id',
         'Player Role': 'player_role_id'
+    }
+
+    # Mapping from internal table name to the config key for that form's log channel
+    _FORM_CHANNEL_MAP = {
+        'recruitment':        'recruitment_channel_id',
+        'progress_report':    'progress_channel_id',
+        'purchase_invoice':   'invoice_channel_id',
+        'demolition_report':  'demolition_channel_id',
+        'demolition_request': 'demolition_channel_id',
+        'eviction_report':    'eviction_channel_id',
+        'scroll_completion':  'scroll_channel_id',
     }
 
     def __init__(self, bot):
@@ -445,8 +456,8 @@ class AdminCog(commands.Cog):
         failed_count = 0
         deleted_approval = 0
         deleted_confirm = 0
+        deleted_resend = 0
 
-        # Get approval channel from guild config
         config = await DBService.get_guild_config(guild.id)
         approval_channel_id = config.get('approval_channel_id') if config else None
 
@@ -475,12 +486,9 @@ class AdminCog(commands.Cog):
                 await award_approval_points(approver.id, table, form_id)
 
                 # 4. Post-approval tasks: notification + role assignment
-                thread_prefix = {
-                    'recruitment': 'Recruitments', 'progress_report': 'Progress Reports',
-                    'purchase_invoice': 'Invoices', 'demolition_report': 'Demolitions',
-                    'demolition_request': 'Demolition Requests', 'eviction_report': 'Evictions',
-                    'scroll_completion': 'Scrolls'
-                }.get(table, table.replace('_', ' ').title())
+                channel_config_key = self._FORM_CHANNEL_MAP.get(table)
+                if not channel_config_key:
+                    raise ValueError(f"No channel config mapping for table {table}")
 
                 await send_approval_notification(
                     bot=self.bot,
@@ -490,8 +498,8 @@ class AdminCog(commands.Cog):
                     form_data=form_data,
                     submitter_id=form_data['submitted_by'],
                     approver=approver,
-                    channel_config_key=f"{table}_channel_id",
-                    thread_prefix=thread_prefix
+                    channel_config_key=channel_config_key,
+                    thread_prefix=ApprovalView._THREAD_PREFIX.get(table, table.replace('_', ' ').title())
                 )
 
                 if table == 'recruitment':
@@ -524,6 +532,17 @@ class AdminCog(commands.Cog):
                     except (discord.NotFound, discord.Forbidden, discord.HTTPException):
                         pass
 
+                # 7. Delete resend confirmation message if present
+                if form.get('resend_confirmation_msg_id') and form.get('resend_confirmation_channel_id'):
+                    try:
+                        channel = self.bot.get_channel(form['resend_confirmation_channel_id'])
+                        if channel:
+                            msg = await channel.fetch_message(form['resend_confirmation_msg_id'])
+                            await msg.delete()
+                            deleted_resend += 1
+                    except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                        pass
+
                 approved_count += 1
             except Exception as e:
                 logger.exception(f"Failed to process {table}#{form_id}: {e}")
@@ -534,6 +553,7 @@ class AdminCog(commands.Cog):
             f"Approved: {approved_count}  |  Failed: {failed_count}\n"
             f"Approval embeds deleted: {deleted_approval}\n"
             f"Submitter confirmations deleted: {deleted_confirm}"
+            f"{f'  |  Resend confirmations deleted: {deleted_resend}' if deleted_resend else ''}"
         )
         await interaction.followup.send(result_msg, ephemeral=True)
         logger.info(f"Bulk approval by {approver.id}: {approved_count} approved, {failed_count} failed.")

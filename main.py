@@ -2,7 +2,8 @@ import asyncio
 import discord
 import logging
 import sys
-from discord.ext import commands
+from pathlib import Path
+from discord.ext import commands, tasks
 
 from config.settings import DISCORD_TOKEN
 from utils.logger import setup_logging
@@ -25,6 +26,8 @@ from utils.views import ApprovalView
 # Configure logging before anything else
 setup_logging(debug=False)
 
+READY_FILE = Path("bot.ready")
+
 
 class TownyBot(commands.Bot):
     """Main bot class for the Towny logging system."""
@@ -40,12 +43,22 @@ class TownyBot(commands.Bot):
         self.s3_client = None
         self.logger = logging.getLogger(__name__)
 
+    @tasks.loop(minutes=4)
+    async def keep_db_alive(self):
+        """Send a trivial query every 4 minutes to keep a connection warm."""
+        try:
+            async with self.db_pool.acquire() as conn:
+                await conn.execute("SELECT 1")
+        except Exception:
+            pass  # ignore – the pool handles reconnects naturally
+
     async def setup_hook(self):
         """Initialize database pool, S3 client, and load all cogs."""
         self.logger.info("Starting setup_hook...")
         try:
             self.db_pool = await init_db_pool()
             self.s3_client = init_s3_client()
+            self.keep_db_alive.start()          # fix #4: keep DB connection warm
         except Exception as e:
             self.logger.critical(f"Failed to initialize services: {e}")
             await self.close()
@@ -62,13 +75,13 @@ class TownyBot(commands.Bot):
         await self.add_cog(ApprovalCog(self))
         await self.add_cog(LeaderboardStatsCog(self))
         await self.add_cog(FormEditCog(self))
-        await self.add_cog(LookupCog(self))      # <-- Register lookup cog
+        await self.add_cog(LookupCog(self))
 
         # Register persistent ApprovalView for handling button interactions after restart
-        # We register a single generic view; it will reconstruct form data from custom_id on interaction
+        # The view reconstructs its state from custom_id on interaction – bug #3 is handled there.
         persistent_view = ApprovalView(
-            table='',              # Will be filled from custom_id
-            form_id=0,             # Will be filled from custom_id
+            table='',
+            form_id=0,
             form_type='',
             submitter_id=0,
             guild_id=0,
@@ -85,6 +98,9 @@ class TownyBot(commands.Bot):
     async def on_ready(self):
         """Called when the bot is connected and ready."""
         self.logger.info(f"Logged in as {self.user} (ID: {self.user.id})")
+        # Mark bot as connected for the dashboard status endpoint
+        READY_FILE.touch()
+
         await self.change_presence(
             activity=discord.Activity(
                 type=discord.ActivityType.watching,
@@ -101,6 +117,8 @@ class TownyBot(commands.Bot):
     async def close(self):
         """Clean up resources before shutdown."""
         self.logger.info("Shutting down...")
+        # Remove connected flag
+        READY_FILE.unlink(missing_ok=True)
         if self.db_pool:
             await close_db_pool(self.db_pool)
         await super().close()
