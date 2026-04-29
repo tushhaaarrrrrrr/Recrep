@@ -16,6 +16,9 @@ from services.db_service import DBService
 from database.connection import init_db_pool, close_db_pool
 from utils.logger import get_logger
 
+from dotenv import load_dotenv
+load_dotenv()
+
 BOT_SCRIPT    = "main.py"
 PID_FILE      = "bot.pid"
 LOCK_FILE     = "bot.lock"          # prevents duplicate start races
@@ -24,7 +27,6 @@ LOG_FILE      = "bot.log"
 VENV_PYTHON   = sys.executable
 
 app = Flask(__name__)
-# NEVER fall back to a hard-coded key – fail hard if env is missing
 app.config["SECRET_KEY"] = os.environ["SECRET_KEY"]
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
