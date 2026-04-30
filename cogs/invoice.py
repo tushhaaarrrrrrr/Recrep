@@ -54,7 +54,11 @@ class InvoiceCog(commands.Cog):
         banner_color: str = None,
         shop_number: int = None
     ):
-        await interaction.response.defer()
+        try:
+            await interaction.response.defer()
+        except (discord.NotFound, discord.HTTPException):
+            return
+
         try:
             screenshots = [s for s in (screenshot1, screenshot2, screenshot3, screenshot4, screenshot5) if s]
             if not screenshots:
@@ -74,8 +78,8 @@ class InvoiceCog(commands.Cog):
                 'submitted_by': interaction.user.id,
                 'submitter_display': interaction.user.display_name,
                 'seller_display': interaction.user.display_name,
-                'purchasee_nickname': buyer_nickname,   # DB field remains 'purchasee_nickname'
-                'purchasee_ingame': buyer_ingame,       # DB field remains 'purchasee_ingame'
+                'purchasee_nickname': buyer_nickname,
+                'purchasee_ingame': buyer_ingame,
                 'purchase_type': purchase_type,
                 'num_plots': num_plots,
                 'total_plots': total_plots,
@@ -89,6 +93,7 @@ class InvoiceCog(commands.Cog):
             logger.info(f"Invoice #{form_id} submitted by {interaction.user.id}")
 
             form_data = {
+                'seller_display': interaction.user.display_name,
                 'purchasee_nickname': buyer_nickname,
                 'purchasee_ingame': buyer_ingame,
                 'amount_deposited': amount_deposited,
@@ -152,6 +157,12 @@ class InvoiceCog(commands.Cog):
                     )
                     msg = await approval_channel.send(embed=embed, view=view)
                     await DBService.set_approval_message_id('purchase_invoice', form_id, msg.id)
+
+                    # Persist confirmation message IDs
+                    await DBService.execute(
+                        "UPDATE purchase_invoice SET confirmation_msg_id = $1, confirmation_channel_id = $2 WHERE id = $3",
+                        confirm_msg.id, interaction.channel_id, form_id
+                    )
 
         except Exception as e:
             logger.exception(f"Error in invoice_submit: {e}")

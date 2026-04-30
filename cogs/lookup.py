@@ -80,6 +80,13 @@ class LookupCog(commands.Cog):
             return True
         return interaction.user.guild_permissions.manage_guild
 
+    async def _safe_defer(self, interaction: discord.Interaction, ephemeral: bool = True) -> bool:
+        try:
+            await interaction.response.defer(ephemeral=ephemeral)
+            return True
+        except (discord.NotFound, discord.HTTPException):
+            return False
+
     def _format_record(self, table: str, row: asyncpg.Record, prefix: str) -> str:
         """Build a detailed, human-readable string from all columns of a form row."""
         display_id = f"{prefix}_{row['id']}"
@@ -125,13 +132,14 @@ class LookupCog(commands.Cog):
 
     @app_commands.command(
         name="lookup_recruitment",
-        description="Search recruitments by in‑game name or Discord username"
+        description="Search recruitments by in-game name or Discord username"
     )
     @app_commands.describe(
-        query="In‑game name or Discord username/mention to search for"
+        query="In-game name or Discord username/mention to search for"
     )
     async def lookup_recruitment(self, interaction: discord.Interaction, query: str):
-        await interaction.response.defer(ephemeral=True)
+        if not await self._safe_defer(interaction, ephemeral=True):
+            return
 
         if not await self._is_authorized(interaction):
             await interaction.followup.send(
@@ -178,13 +186,14 @@ class LookupCog(commands.Cog):
 
     @app_commands.command(
         name="lookup_invoice",
-        description="Search purchase invoices by buyer's in‑game name"
+        description="Search purchase invoices by buyer's in-game name"
     )
     @app_commands.describe(
         ingame_name="Buyer's Minecraft username (partial match supported)"
     )
     async def lookup_invoice(self, interaction: discord.Interaction, ingame_name: str):
-        await interaction.response.defer(ephemeral=True)
+        if not await self._safe_defer(interaction, ephemeral=True):
+            return
 
         if not await self._is_authorized(interaction):
             await interaction.followup.send(

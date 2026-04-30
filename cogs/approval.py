@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from services.db_service import DBService
-from utils.views import ApprovalView
+from utils.views import ApprovalView, _FORM_CHANNEL_MAP
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -30,7 +30,7 @@ class ApprovalCog(commands.Cog):
         'scroll_completion': 'scr'
     }
 
-    # Thread prefix used by each cog (must match exactly)
+    # Thread prefix used by each cog
     _THREAD_PREFIX = {
         'recruitment': 'Recruitments',
         'progress_report': 'Progress Reports',
@@ -79,14 +79,16 @@ class ApprovalCog(commands.Cog):
             )
             return
 
+        total_count = len(pending)
         embed = discord.Embed(
             title="📋 Pending Approval Forms",
-            description=f"**Total:** {len(pending)}",
+            description=f"**Total:** {total_count}",
             color=discord.Color.orange(),
             timestamp=discord.utils.utcnow()
         )
 
-        for table, fid, prefix, submitter_id, submitted_at in pending[:25]:
+        display_items = pending[:25]
+        for table, fid, prefix, submitter_id, submitted_at in display_items:
             submitter = interaction.guild.get_member(submitter_id)
             submitter_name = submitter.display_name if submitter else f"User {submitter_id}"
             display_id = f"{prefix}_{fid}"
@@ -95,6 +97,9 @@ class ApprovalCog(commands.Cog):
                 value=f"**Submitted by:** {submitter_name}\n**At:** {submitted_at.strftime('%Y-%m-%d %H:%M')} UTC",
                 inline=False
             )
+
+        if total_count > 25:
+            embed.set_footer(text=f"Showing 25 of {total_count} forms · Ask a developer to increase the limit if needed.")
 
         await interaction.followup.send(embed=embed, ephemeral=True)
 
@@ -130,14 +135,16 @@ class ApprovalCog(commands.Cog):
             )
             return
 
+        total_count = len(held)
         embed = discord.Embed(
             title="⏸️ Forms on Hold",
-            description=f"**Total:** {len(held)}",
+            description=f"**Total:** {total_count}",
             color=discord.Color.greyple(),
             timestamp=discord.utils.utcnow()
         )
 
-        for table, fid, prefix, submitter_id, submitted_at in held[:25]:
+        display_items = held[:25]
+        for table, fid, prefix, submitter_id, submitted_at in display_items:
             submitter = interaction.guild.get_member(submitter_id)
             submitter_name = submitter.display_name if submitter else f"User {submitter_id}"
             display_id = f"{prefix}_{fid}"
@@ -146,6 +153,9 @@ class ApprovalCog(commands.Cog):
                 value=f"**Submitted by:** {submitter_name}\n**At:** {submitted_at.strftime('%Y-%m-%d %H:%M')} UTC",
                 inline=False
             )
+
+        if total_count > 25:
+            embed.set_footer(text=f"Showing 25 of {total_count} forms · Ask a developer to increase the limit if needed.")
 
         await interaction.followup.send(embed=embed, ephemeral=True)
 
@@ -187,9 +197,10 @@ class ApprovalCog(commands.Cog):
             )
             return
 
-        # Fetch the form – now allows 'pending' OR 'hold'
+        # Fetch the form - now allows 'pending' OR 'hold', plus the message IDs we need
         row = await DBService.fetchrow(
-            f"SELECT * FROM {table} WHERE id = $1 AND status IN ('pending', 'hold')",
+            f"SELECT *, confirmation_msg_id, confirmation_channel_id "
+            f"FROM {table} WHERE id = $1 AND status IN ('pending', 'hold')",
             numeric_id
         )
         if not row:
@@ -227,7 +238,7 @@ class ApprovalCog(commands.Cog):
             except Exception as e:
                 logger.warning(f"Could not delete old approval message {old_msg_id}: {e}")
 
-        # Build the embed – reflect current status in the title
+        # Build the embed - reflect current status in the title
         status_label = "On Hold" if row['status'] == 'hold' else "Resubmitted"
         embed = discord.Embed(
             title=f"📄 {status_label}: {table.replace('_', ' ').title()}",
@@ -240,19 +251,22 @@ class ApprovalCog(commands.Cog):
         if row.get('screenshot_urls'):
             embed.set_image(url=row['screenshot_urls'].split(',')[0])
 
+        # Use the correct channel config key
+        channel_config_key = _FORM_CHANNEL_MAP.get(table, f"{table}_channel_id")
         thread_prefix = self._THREAD_PREFIX.get(table, table.replace('_', ' ').title())
 
+        # Build the view with all the IDs we have
         view = ApprovalView(
             table=table,
             form_id=numeric_id,
             form_type=table,
             submitter_id=row['submitted_by'],
             guild_id=interaction.guild_id,
-            channel_config_key=f"{table}_channel_id",
+            channel_config_key=channel_config_key,
             thread_prefix=thread_prefix,
-            confirmation_msg_id=None,
-            confirmation_channel_id=None,
-            form_data=None,
+            confirmation_msg_id=row.get('confirmation_msg_id'),
+            confirmation_channel_id=row.get('confirmation_channel_id'),
+            form_data=dict(row) if row else None,
             resend_confirmation_msg_id=None,
             resend_confirmation_channel_id=interaction.channel_id
         )
@@ -265,7 +279,12 @@ class ApprovalCog(commands.Cog):
             ephemeral=True,
             wait=True
         )
+
+        # Persist the resend confirmation message ID to the database
         view.resend_confirmation_msg_id = confirm_msg.id
+        await DBService.set_resend_confirmation_ids(
+            table, numeric_id, confirm_msg.id, interaction.channel_id
+        )
 
 async def setup(bot):
     await bot.add_cog(ApprovalCog(bot))

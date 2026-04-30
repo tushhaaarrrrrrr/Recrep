@@ -41,6 +41,12 @@ ALLOWED_FIELDS = {
     },
 }
 
+# Allowed columns for set_guild_config - prevents SQL injection via unknown keys
+ALLOWED_CONFIG_COLS = {
+    'approval_channel_id', 'recruitment_channel_id', 'progress_channel_id',
+    'invoice_channel_id', 'demolition_channel_id', 'eviction_channel_id',
+    'scroll_channel_id', 'community_guild_id', 'player_role_id',
+}
 
 # ── Mention helpers ────────────────────────────────────────────────────────
 def extract_user_id_from_mention(mention: str) -> int:
@@ -86,6 +92,11 @@ class DBService:
 
     @staticmethod
     async def set_guild_config(guild_id: int, **kwargs):
+        # Validate keys (fix #14 - SQL injection guard)
+        for key in kwargs:
+            if key not in ALLOWED_CONFIG_COLS:
+                raise ValueError(f"Invalid guild_config column: {key}")
+
         cols = ", ".join(kwargs.keys())
         values = [guild_id] + list(kwargs.values())
         query = f"""
@@ -100,15 +111,6 @@ class DBService:
     async def get_community_guild_and_role(bot, staff_guild_id: int) -> tuple:
         """
         Retrieve the community guild object and player role ID from config.
-
-        Args:
-            bot: The Discord bot instance.
-            staff_guild_id: The ID of the staff server (guild where the command/config is).
-
-        Returns:
-            (community_guild, player_role_id) where community_guild is a discord.Guild or None.
-        Raises:
-            ValueError: If config is missing or invalid.
         """
         config = await DBService.get_guild_config(staff_guild_id)
         if not config:
@@ -128,8 +130,6 @@ class DBService:
     # Staff member management
     @staticmethod
     async def ensure_staff_member(discord_id: int, display_name: str):
-        """Insert or update staff member. Only update display_name if a non-empty value is provided."""
-        # First try to insert
         await DBService.execute(
             """
             INSERT INTO staff_member (discord_id, display_name)
@@ -138,14 +138,13 @@ class DBService:
             """,
             discord_id, display_name
         )
-        # If a display name was provided, update it (only if it's non-empty)
         if display_name and display_name.strip():
             await DBService.execute(
                 "UPDATE staff_member SET display_name = $1 WHERE discord_id = $2",
                 display_name, discord_id
             )
 
-    # Insert forms
+    # Insert forms (unchanged)
     @staticmethod
     async def insert_recruitment(data: Dict) -> int:
         display_name = data.get('submitter_display', data.get('recruiter_display', ''))
@@ -259,23 +258,17 @@ class DBService:
         )
         return row['id']
 
-    # ── Approval actions (atomic, with audit) ──────────────────────────────
+    # ── Approval actions (atomic, guarded) ────────────────────────────────
+
     @staticmethod
     async def approve_form(table: str, form_id: int, approver_id: int) -> bool:
         """
         Atomically approve a form that is still 'pending'.
         Returns True if the row was updated, False if it was already processed.
         """
-        result = await DBService.execute(
-            f"UPDATE {table} SET status = 'approved', approved_by = $1, approved_at = NOW() "
-            f"WHERE id = $2 AND status = 'pending'",
-            approver_id, form_id
-        )
-        # asyncpg returns the command tag (e.g. 'UPDATE 1'); we parse the count.
-        # We'll use execute and assume 0 means no row matched.
-        # More precise: use fetchrow with RETURNING, but for simplicity:
-        # We'll re-query after update, but that's not atomic. Better to use RETURNING.
-        # Actually let's use fetchrow directly.
+        if table not in ALLOWED_TABLES:
+            raise ValueError(f"Invalid table: {table}")
+
         row = await DBService.fetchrow(
             f"UPDATE {table} SET status = 'approved', approved_by = $1, approved_at = NOW() "
             f"WHERE id = $2 AND status = 'pending' RETURNING id",
@@ -286,20 +279,22 @@ class DBService:
     @staticmethod
     async def deny_form(table: str, form_id: int, denier_id: int = None) -> bool:
         """
-        Atomically deny a form that is still 'pending'.
+        Atomically deny a form that is still 'pending' or 'hold'.
         Returns True if the row was updated, False if already processed.
-        denier_id is optional for backward compatibility; set to None if not tracked.
         """
+        if table not in ALLOWED_TABLES:
+            raise ValueError(f"Invalid table: {table}")
+
         if denier_id is not None:
             row = await DBService.fetchrow(
                 f"UPDATE {table} SET status = 'denied', denied_by = $1, denied_at = NOW() "
-                f"WHERE id = $2 AND status = 'pending' RETURNING id",
+                f"WHERE id = $2 AND status IN ('pending', 'hold') RETURNING id",
                 denier_id, form_id
             )
         else:
             row = await DBService.fetchrow(
                 f"UPDATE {table} SET status = 'denied', denied_at = NOW() "
-                f"WHERE id = $1 AND status = 'pending' RETURNING id",
+                f"WHERE id = $1 AND status IN ('pending', 'hold') RETURNING id",
                 form_id
             )
         return row is not None
@@ -310,6 +305,9 @@ class DBService:
         Atomically put a form on hold if it is 'pending'.
         Returns True if updated, False if already processed.
         """
+        if table not in ALLOWED_TABLES:
+            raise ValueError(f"Invalid table: {table}")
+
         row = await DBService.fetchrow(
             f"UPDATE {table} SET status = 'hold' WHERE id = $1 AND status = 'pending' RETURNING id",
             form_id
@@ -318,6 +316,8 @@ class DBService:
 
     @staticmethod
     async def get_pending_form(table: str, form_id: int) -> Optional[Dict]:
+        if table not in ALLOWED_TABLES:
+            raise ValueError(f"Invalid table: {table}")
         row = await DBService.fetchrow(
             f"SELECT * FROM {table} WHERE id = $1 AND status = 'pending'", form_id
         )
@@ -325,19 +325,36 @@ class DBService:
 
     @staticmethod
     async def set_thread_message_id(table: str, form_id: int, message_id: int):
+        if table not in ALLOWED_TABLES:
+            raise ValueError(f"Invalid table: {table}")
         await DBService.execute(
             f"UPDATE {table} SET thread_message_id = $1 WHERE id = $2", message_id, form_id
         )
 
     @staticmethod
     async def set_approval_message_id(table: str, form_id: int, message_id: int):
+        if table not in ALLOWED_TABLES:
+            raise ValueError(f"Invalid table: {table}")
         await DBService.execute(
             f"UPDATE {table} SET approval_message_id = $1 WHERE id = $2",
             message_id, form_id
         )
 
     @staticmethod
+    async def set_resend_confirmation_ids(table: str, form_id: int, msg_id: int, channel_id: int):
+        """Save the resend confirmation message ID and channel to the database."""
+        if table not in ALLOWED_TABLES:
+            raise ValueError(f"Invalid table: {table}")
+        await DBService.execute(
+            f"UPDATE {table} SET resend_confirmation_msg_id = $1, resend_confirmation_channel_id = $2 "
+            f"WHERE id = $3",
+            msg_id, channel_id, form_id
+        )
+
+    @staticmethod
     async def get_approval_message_id(table: str, form_id: int) -> Optional[int]:
+        if table not in ALLOWED_TABLES:
+            raise ValueError(f"Invalid table: {table}")
         row = await DBService.fetchrow(
             f"SELECT approval_message_id FROM {table} WHERE id = $1", form_id
         )
@@ -345,13 +362,13 @@ class DBService:
 
     @staticmethod
     async def get_full_form_data(table: str, form_id: int) -> Optional[Dict]:
+        if table not in ALLOWED_TABLES:
+            raise ValueError(f"Invalid table: {table}")
         row = await DBService.fetchrow(f"SELECT * FROM {table} WHERE id = $1", form_id)
         return dict(row) if row else None
 
-    # Bulk fetch all pending forms (fault‑isolated)
     @staticmethod
     async def get_all_pending_forms() -> List[Dict]:
-        """Return a list of all pending forms with IDs needed for cleanup."""
         tables = [
             'recruitment', 'progress_report', 'purchase_invoice',
             'demolition_report', 'demolition_request', 'eviction_report',
@@ -382,7 +399,7 @@ class DBService:
                 continue
         return results
 
-    # Reputation and leaderboards
+    # Reputation and leaderboards (unchanged except where noted)
     @staticmethod
     async def add_reputation(staff_id: int, points: int, reason: str, form_type: str, form_id: int, created_at: datetime = None):
         await DBService.ensure_staff_member(staff_id, "")
@@ -700,7 +717,7 @@ class DBService:
         )
         return [dict(row) for row in rows]
 
-    # Form editing support (safe – SQL injection fixed)
+    # Form editing support (safe)
     @staticmethod
     async def get_form_by_id(table: str, form_id: int) -> Optional[tuple]:
         if table not in ALLOWED_TABLES:

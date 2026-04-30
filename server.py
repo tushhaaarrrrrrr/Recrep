@@ -141,7 +141,7 @@ def start_bot():
                 stdout=log_file, stderr=subprocess.STDOUT, start_new_session=True
             )
         finally:
-            log_file.close()   # fix #7 – never leak file handles
+            log_file.close()   # fix #7 - never leak file handles
 
         with open(PID_FILE, "w") as f:
             f.write(str(proc.pid))
@@ -160,7 +160,7 @@ def stop_bot():
 
     proc.terminate()
     try:
-        proc.wait(timeout=10)          # fix #8 – give graceful shutdown a chance
+        proc.wait(timeout=10)          # fix #8 - give graceful shutdown a chance
     except psutil.TimeoutExpired:
         proc.kill()
 
@@ -186,13 +186,13 @@ def reset_bot():
         return False, f"Reset failed: {e}"
     return start_bot()
 
-# ── Watchdog thread – auto-restart bot if it crashes ────────────────────────
+# ── Watchdog thread - auto-restart bot if it crashes ────────────────────────
 def _watchdog_thread():
     """Check bot health every 30 seconds, restart if dead."""
     while True:
         time.sleep(30)
         if not _find_bot_process():
-            logger.warning("Bot process missing – watchdog restarting.")
+            logger.warning("Bot process missing - watchdog restarting.")
             start_bot()
 
 _watchdog = threading.Thread(target=_watchdog_thread, daemon=True)

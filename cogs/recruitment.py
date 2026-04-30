@@ -48,7 +48,11 @@ class RecruitmentCog(commands.Cog):
         screenshot4: discord.Attachment = None,
         screenshot5: discord.Attachment = None
     ):
-        await interaction.response.defer()
+        try:
+            await interaction.response.defer()
+        except (discord.NotFound, discord.HTTPException):
+            return
+
         try:
             screenshots = [s for s in (screenshot1, screenshot2, screenshot3, screenshot4, screenshot5) if s]
             screenshot_urls = []
@@ -121,6 +125,12 @@ class RecruitmentCog(commands.Cog):
                     )
                     msg = await approval_channel.send(embed=embed, view=view)
                     await DBService.set_approval_message_id('recruitment', form_id, msg.id)
+
+                    # Persist confirmation message IDs
+                    await DBService.execute(
+                        "UPDATE recruitment SET confirmation_msg_id = $1, confirmation_channel_id = $2 WHERE id = $3",
+                        confirm_msg.id, interaction.channel_id, form_id
+                    )
 
         except Exception as e:
             logger.exception(f"Error in recruitment_add: {e}")

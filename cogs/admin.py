@@ -57,7 +57,7 @@ class AdminCog(commands.Cog):
         except (discord.NotFound, discord.HTTPException):
             return False
 
-    # ── Existing configuration commands (unchanged) ──
+    # ── Configuration commands
     @app_commands.command(
         name="set_approval_channel",
         description="Set the channel where pending forms are sent for approval"
@@ -67,7 +67,7 @@ class AdminCog(commands.Cog):
         await DBService.set_guild_config(interaction.guild_id, approval_channel_id=channel.id)
         logger.info(f"Guild {interaction.guild_id}: Approval channel set to {channel.id}")
         await interaction.response.send_message(
-            f"✅ Approval channel set – new forms will appear in {channel.mention}",
+            f"✅ Approval channel set - new forms will appear in {channel.mention}",
             ephemeral=True
         )
 
@@ -89,7 +89,7 @@ class AdminCog(commands.Cog):
         await DBService.set_guild_config(interaction.guild_id, **{log_type.value: channel.id})
         logger.info(f"Guild {interaction.guild_id}: {log_type.name} log channel set to {channel.id}")
         await interaction.response.send_message(
-            f"✅ {log_type.name} log channel set – monthly threads will be created in {channel.mention}",
+            f"✅ {log_type.name} log channel set - monthly threads will be created in {channel.mention}",
             ephemeral=True
         )
 
@@ -205,7 +205,7 @@ class AdminCog(commands.Cog):
                 roles = await DBService.get_user_roles(member.id)
                 if roles:
                     await interaction.response.send_message(
-                        f"📋 **{member.display_name}** – internal roles: **{', '.join(roles)}**",
+                        f"📋 **{member.display_name}** - internal roles: **{', '.join(roles)}**",
                         ephemeral=True
                     )
                 else:
@@ -435,7 +435,7 @@ class AdminCog(commands.Cog):
         await self.bot.close()
         sys.exit(0)
 
-    # ── Patched approve_all ────────────────────────────────────────────────
+    # ── Approve all forms ────────────────────────────────────────────────
     @app_commands.command(
         name="approve_all",
         description="Approve all pending forms, notify log channels, assign roles, and clean up messages"

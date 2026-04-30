@@ -50,7 +50,7 @@ class TownyBot(commands.Bot):
             async with self.db_pool.acquire() as conn:
                 await conn.execute("SELECT 1")
         except Exception:
-            pass  # ignore – the pool handles reconnects naturally
+            pass  # ignore - the pool handles reconnects naturally
 
     async def setup_hook(self):
         """Initialize database pool, S3 client, and load all cogs."""
@@ -78,7 +78,7 @@ class TownyBot(commands.Bot):
         await self.add_cog(LookupCog(self))
 
         # Register persistent ApprovalView for handling button interactions after restart
-        # The view reconstructs its state from custom_id on interaction – bug #3 is handled there.
+        # The view reconstructs its state from custom_id on interaction - bug #3 is handled there.
         persistent_view = ApprovalView(
             table='',
             form_id=0,

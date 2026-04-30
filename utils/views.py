@@ -12,8 +12,18 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-
 # ── Shared helpers for post-approval actions (used by both ApprovalView and bulk command) ──
+
+# Correct channel-config keys for every form table
+_FORM_CHANNEL_MAP = {
+    'recruitment':        'recruitment_channel_id',
+    'progress_report':    'progress_channel_id',
+    'purchase_invoice':   'invoice_channel_id',
+    'demolition_report':  'demolition_channel_id',
+    'demolition_request': 'demolition_channel_id',
+    'eviction_report':    'eviction_channel_id',
+    'scroll_completion':  'scroll_channel_id',
+}
 
 async def send_approval_notification(bot, guild, table, form_id, form_data,
                                     submitter_id, approver, channel_config_key, thread_prefix):
@@ -58,7 +68,7 @@ async def send_approval_notification(bot, guild, table, form_id, form_data,
         plots = form_data.get('plots', 0)
         discord_user = form_data.get('discord_username')
         age = form_data.get('age')
-        details = f"Recruited **{nickname}** ({ingame}) – {plots} plots"
+        details = f"Recruited **{nickname}** ({ingame}) - {plots} plots"
         if discord_user:
             details += f"\n• Discord: {discord_user}"
         if age:
@@ -295,38 +305,49 @@ class ApprovalView(discord.ui.View):
         if not self.table or self.form_id == 0:
             button_id = interaction.data.get('custom_id', '')
             parts = button_id.split('_')
-            if len(parts) >= 3:
-                table_candidate = parts[-2]
-                form_id_candidate = parts[-1]
+            # We need at least 4 parts: e.g., approve_button_recruitment_5
+            if len(parts) >= 4:
+                # Reconstruct the table name from everything between the button prefix and the numeric ID
+                form_id_str = parts[-1]
+                table_name = '_'.join(parts[2:-1])   # handle multi-word tables like progress_report
 
-                if table_candidate in self._TABLE_PREFIX:
-                    self.table = table_candidate
+                if table_name in self._TABLE_PREFIX:
+                    self.table = table_name
                     try:
-                        self.form_id = int(form_id_candidate)
+                        self.form_id = int(form_id_str)
                     except ValueError:
                         logger.error(f"Invalid form_id in custom_id: {button_id}")
                         return False
 
+                    # Fetch all necessary fields from the database to fully restore the view state
                     row = await DBService.fetchrow(
-                        f"SELECT submitted_by FROM {self.table} WHERE id = $1",
+                        f"SELECT submitted_by, confirmation_msg_id, confirmation_channel_id, "
+                        f"resend_confirmation_msg_id, resend_confirmation_channel_id "
+                        f"FROM {self.table} WHERE id = $1",
                         self.form_id
                     )
                     if row:
                         self.submitter_id = row['submitted_by']
+                        self.confirmation_msg_id = row.get('confirmation_msg_id')
+                        self.confirmation_channel_id = row.get('confirmation_channel_id')
+                        self.resend_confirmation_msg_id = row.get('resend_confirmation_msg_id')
+                        self.resend_confirmation_channel_id = row.get('resend_confirmation_channel_id')
                         self.guild_id = interaction.guild_id
                         self.form_type = self.table
-                        self.channel_config_key = f"{self.table}_channel_id"
+                        self.channel_config_key = _FORM_CHANNEL_MAP.get(
+                            self.table, f"{self.table}_channel_id"
+                        )
                         self.thread_prefix = self._THREAD_PREFIX.get(
                             self.table, self.table.replace('_', ' ').title()
                         )
-                        self.form_data = None
+                        self.form_data = None   # will be backfilled later if needed
                         logger.info(f"Reconstructed ApprovalView for {self.table} #{self.form_id} after restart")
                         return True
                     else:
                         logger.warning(f"Form {self.table} #{self.form_id} not found in database")
                         return False
                 else:
-                    logger.warning(f"Unknown table '{table_candidate}' in custom_id: {button_id}")
+                    logger.warning(f"Unknown table '{table_name}' in custom_id: {button_id}")
                     return False
             else:
                 logger.warning(f"Unexpected custom_id format: {button_id}")
@@ -406,11 +427,11 @@ class ApprovalView(discord.ui.View):
     # the new free functions are used instead.
 
     async def _assign_player_role(self, interaction: discord.Interaction) -> tuple[bool, str]:
-        """Legacy method – now unused but kept for compatibility."""
+        """Legacy method - now unused but kept for compatibility."""
         return False, "Deprecated"
 
     async def _send_notification(self, guild: discord.Guild, approver: discord.Member):
-        """Legacy method – now unused but kept for compatibility."""
+        """Legacy method - now unused but kept for compatibility."""
         pass
 
     def _build_summary(self) -> str:
@@ -476,6 +497,7 @@ class ApprovalView(discord.ui.View):
         await interaction.response.defer()
         display_id = self._get_display_id()
 
+        # Authorization check BEFORE disabling buttons
         if not await self._is_authorized(interaction):
             await interaction.followup.send(
                 "❌ You don't have permission to approve/deny forms. (Requires Admin or Comayor role)",
@@ -489,6 +511,11 @@ class ApprovalView(discord.ui.View):
 
         current = await self._fetch_form_details()
         current_status = current.get('status') if current else None
+
+        # Backfill form_data if we don't have it yet (post‑restart or post‑resend)
+        if current and self.form_data is None:
+            self.form_data = current
+
         if current_status in ('approved', 'denied'):
             await interaction.followup.send(
                 f"⚠️ This form has already been **{current_status}**. No further action needed.",
@@ -555,7 +582,8 @@ class ApprovalView(discord.ui.View):
                     ephemeral=True
                 )
             else:
-                await DBService.deny_form(self.table, self.form_id)
+                # Deny: pass denier_id for audit trail (db_service will handle the status filter)
+                await DBService.deny_form(self.table, self.form_id, denier_id=interaction.user.id)
                 await self._delete_form_images()
                 await self._cleanup_messages(interaction)
                 await interaction.followup.send(

@@ -44,7 +44,11 @@ class EvictionCog(commands.Cog):
         screenshot4: discord.Attachment = None,
         screenshot5: discord.Attachment = None
     ):
-        await interaction.response.defer()
+        try:
+            await interaction.response.defer()
+        except (discord.NotFound, discord.HTTPException):
+            return
+
         try:
             screenshots = [s for s in (screenshot1, screenshot2, screenshot3, screenshot4, screenshot5) if s]
             if not screenshots:
@@ -82,7 +86,7 @@ class EvictionCog(commands.Cog):
             prefix = self._TABLE_PREFIX['eviction_report']
             display_id = f"{prefix}_{form_id}"
 
-            confirm_msg = await interaction.followup.send(f"✅ Eviction report `{display_id}` submitted – pending approval.")
+            confirm_msg = await interaction.followup.send(f"✅ Eviction report `{display_id}` submitted - pending approval.")
 
             config = await DBService.get_guild_config(interaction.guild_id)
             if config and config.get('approval_channel_id'):
@@ -119,6 +123,12 @@ class EvictionCog(commands.Cog):
                     )
                     msg = await approval_channel.send(embed=embed, view=view)
                     await DBService.set_approval_message_id('eviction_report', form_id, msg.id)
+
+                    # Persist confirmation message
+                    await DBService.execute(
+                        "UPDATE eviction_report SET confirmation_msg_id = $1, confirmation_channel_id = $2 WHERE id = $3",
+                        confirm_msg.id, interaction.channel_id, form_id
+                    )
 
         except Exception as e:
             logger.exception(f"Error in eviction_submit: {e}")

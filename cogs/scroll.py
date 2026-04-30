@@ -43,7 +43,11 @@ class ScrollCog(commands.Cog):
         screenshot4: discord.Attachment = None,
         screenshot5: discord.Attachment = None
     ):
-        await interaction.response.defer()
+        try:
+            await interaction.response.defer()
+        except (discord.NotFound, discord.HTTPException):
+            return
+
         try:
             scroll_type_lower = scroll_type.lower()
             if scroll_type_lower not in self._VALID_SCROLL_TYPES:
@@ -124,6 +128,12 @@ class ScrollCog(commands.Cog):
                     )
                     msg = await approval_channel.send(embed=embed, view=view)
                     await DBService.set_approval_message_id('scroll_completion', form_id, msg.id)
+
+                    # Persist confirmation message IDs
+                    await DBService.execute(
+                        "UPDATE scroll_completion SET confirmation_msg_id = $1, confirmation_channel_id = $2 WHERE id = $3",
+                        confirm_msg.id, interaction.channel_id, form_id
+                    )
 
         except Exception as e:
             logger.exception(f"Error in scroll_submit: {e}")

@@ -86,7 +86,10 @@ class FormEditCog(commands.Cog):
         value: str
     ):
         """Edit a specific field of a pending or held form."""
-        await interaction.response.defer(ephemeral=True)
+        try:
+            await interaction.response.defer(ephemeral=True)
+        except (discord.NotFound, discord.HTTPException):
+            return
 
         if '_' not in form_id:
             await interaction.followup.send(

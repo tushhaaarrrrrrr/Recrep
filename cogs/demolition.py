@@ -87,7 +87,7 @@ class DemolitionCog(commands.Cog):
             prefix = self._TABLE_PREFIX['demolition_report']
             display_id = f"{prefix}_{form_id}"
 
-            confirm_msg = await interaction.followup.send(f"✅ Demolition report `{display_id}` submitted – pending approval.")
+            confirm_msg = await interaction.followup.send(f"✅ Demolition report `{display_id}` submitted - pending approval.")
 
             config = await DBService.get_guild_config(interaction.guild_id)
             if config and config.get('approval_channel_id'):
@@ -124,6 +124,12 @@ class DemolitionCog(commands.Cog):
                     )
                     msg = await approval_channel.send(embed=embed, view=view)
                     await DBService.set_approval_message_id('demolition_report', form_id, msg.id)
+
+                    # Persist confirmation message IDs so they can be cleaned up later
+                    await DBService.execute(
+                        "UPDATE demolition_report SET confirmation_msg_id = $1, confirmation_channel_id = $2 WHERE id = $3",
+                        confirm_msg.id, interaction.channel_id, form_id
+                    )
 
         except Exception as e:
             logger.exception(f"Error in demolition_submit: {e}")
@@ -198,7 +204,7 @@ class DemolitionCog(commands.Cog):
             prefix = self._TABLE_PREFIX['demolition_request']
             display_id = f"{prefix}_{form_id}"
 
-            confirm_msg = await interaction.followup.send(f"📢 Demolition request `{display_id}` submitted – pending admin review.")
+            confirm_msg = await interaction.followup.send(f"📢 Demolition request `{display_id}` submitted - pending admin review.")
 
             config = await DBService.get_guild_config(interaction.guild_id)
             if config and config.get('approval_channel_id'):
@@ -234,6 +240,12 @@ class DemolitionCog(commands.Cog):
                     )
                     msg = await approval_channel.send(embed=embed, view=view)
                     await DBService.set_approval_message_id('demolition_request', form_id, msg.id)
+
+                    # Persist confirmation message IDs
+                    await DBService.execute(
+                        "UPDATE demolition_request SET confirmation_msg_id = $1, confirmation_channel_id = $2 WHERE id = $3",
+                        confirm_msg.id, interaction.channel_id, form_id
+                    )
 
         except Exception as e:
             logger.exception(f"Error in demolition_request: {e}")

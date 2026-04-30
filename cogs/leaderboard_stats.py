@@ -73,6 +73,13 @@ class LeaderboardStatsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    async def _safe_defer(self, interaction: discord.Interaction, ephemeral: bool = False) -> bool:
+        try:
+            await interaction.response.defer(ephemeral=ephemeral)
+            return True
+        except (discord.NotFound, discord.HTTPException):
+            return False
+
     @app_commands.command(
         name="leaderboard",
         description="Show the full leaderboard for a specific category and time period"
@@ -101,10 +108,10 @@ class LeaderboardStatsCog(commands.Cog):
         category: app_commands.Choice[str],
         period: app_commands.Choice[str]
     ):
-        await interaction.response.defer()
+        if not await self._safe_defer(interaction):
+            return
 
         try:
-            # Fetch all rows (use high limit to get full list)
             if category.value == "reputation":
                 rows = await DBService.get_leaderboard(period.value, limit=1000)
                 title = f"🏆 {period.name} Reputation Leaderboard"
@@ -163,7 +170,8 @@ class LeaderboardStatsCog(commands.Cog):
         member: discord.Member,
         period: app_commands.Choice[str] = None
     ):
-        await interaction.response.defer()
+        if not await self._safe_defer(interaction):
+            return
 
         try:
             if period is None:
