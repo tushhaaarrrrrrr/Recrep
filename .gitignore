@@ -44,6 +44,8 @@ Thumbs.db
 
 # Log files from bot manager
 bot.log
+bot.pid
+bot.ready
 *.log
 
 # Python distribution
@@ -61,3 +63,5 @@ dmypy.json
 .pytest_cache/
 .coverage
 htmlcov/
+
+monthly_payment_report_2026-04_assets/
