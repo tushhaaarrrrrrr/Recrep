@@ -18,14 +18,8 @@ from utils.logger import get_logger
 from dotenv import load_dotenv
 load_dotenv()
 
-try:
-    import fcntl
-except ImportError:
-    import winfcntl as fcntl
-
 BOT_SCRIPT    = "main.py"
 PID_FILE      = "bot.pid"
-LOCK_FILE     = "bot.lock"
 READY_FILE    = "bot.ready"
 LOG_FILE      = "bot.log"
 VENV_PYTHON   = sys.executable
@@ -35,6 +29,9 @@ app.config["SECRET_KEY"] = os.environ["SECRET_KEY"]
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 logger = get_logger(__name__)
+
+# ── Threading lock ─────────────────────────
+_start_lock = threading.Lock()
 
 # ── Async event loop ──────────────────────────────────────────────────────────
 _db_pool    = None
@@ -103,7 +100,7 @@ def _ensure_pid_file(proc):
         pass
 
 def get_bot_status():
-    # First try the PID file (fastest)
+    # First try the PID file
     proc = _get_bot_process() if os.path.exists(PID_FILE) else None
     if proc is None:
         # Fallback to process scan
@@ -124,12 +121,8 @@ def get_bot_status():
     return {"running": True, "pid": proc.pid, "uptime": uptime, "connected": True}
 
 def start_bot():
-    # Atomically acquire a lock to prevent double-start races
-    lock_file = open(LOCK_FILE, "w")
-    try:
-        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        lock_file.close()
+    acquired = _start_lock.acquire(blocking=False)
+    if not acquired:
         return False, "Bot is already starting or running."
 
     try:
@@ -142,17 +135,17 @@ def start_bot():
         try:
             proc = subprocess.Popen(
                 [VENV_PYTHON, BOT_SCRIPT],
-                stdout=log_file, stderr=subprocess.STDOUT, start_new_session=True
+                stdout=log_file, stderr=subprocess.STDOUT,
+                start_new_session=True
             )
         finally:
-            log_file.close()   # fix #7 - never leak file handles
+            log_file.close()
 
         with open(PID_FILE, "w") as f:
             f.write(str(proc.pid))
         return True, f"Bot started (PID {proc.pid})"
     finally:
-        fcntl.flock(lock_file, fcntl.LOCK_UN)
-        lock_file.close()
+        _start_lock.release()
 
 def stop_bot():
     proc = _get_bot_process() if os.path.exists(PID_FILE) else None
@@ -164,7 +157,7 @@ def stop_bot():
 
     proc.terminate()
     try:
-        proc.wait(timeout=10)          # fix #8 - give graceful shutdown a chance
+        proc.wait(timeout=10)
     except psutil.TimeoutExpired:
         proc.kill()
 
@@ -178,7 +171,7 @@ def restart_bot():
     ok, msg = stop_bot()
     if not ok and "not running" not in msg:
         return False, f"Stop failed: {msg}"
-    time.sleep(2)   # brief pause for sockets to release
+    time.sleep(2)
     return start_bot()
 
 def reset_bot():
@@ -190,11 +183,11 @@ def reset_bot():
         return False, f"Reset failed: {e}"
     return start_bot()
 
-# ── Watchdog thread - auto-restart bot if it crashes ────────────────────────
+# ── Watchdog thread ────────────────────────
 def _watchdog_thread():
-    """Check bot health every 30 seconds, restart if dead."""
+    """Check bot health every 300 seconds, restart if dead."""
     while True:
-        time.sleep(30)
+        time.sleep(300)
         if not _find_bot_process():
             logger.warning("Bot process missing - watchdog restarting.")
             start_bot()
