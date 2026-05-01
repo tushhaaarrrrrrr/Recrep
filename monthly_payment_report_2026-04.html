@@ -304,25 +304,6 @@ body::before {
   gap: 10px;
   flex-wrap: wrap;
 }
-.cat-bonus-label {
-  font-size: 11px;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.cat-bonus-input {
-  width: 100px;
-  padding: 7px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border2);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font-family: var(--font-body);
-  font-size: 13px;
-  outline: none;
-  transition: border-color .15s;
-}
-.cat-bonus-input:focus { border-color: var(--cat-color, var(--border2)); }
 .cat-final-pill {
   padding: 7px 16px;
   border-radius: 99px;
@@ -683,7 +664,7 @@ body::before {
       <span>Records <strong>505</strong></span>
       <span>Active staff <strong>25</strong></span>
       <span>Evidence <strong>90 files</strong></span>
-      <span>Generated <strong>01 May 2026, 19:40 UTC</strong></span>
+      <span>Generated <strong>01 May 2026, 20:05 UTC</strong></span>
     </div>
   </header>
 
@@ -694,11 +675,7 @@ body::before {
       <div class="tc-value" id="grandAuto">6,163,435</div>
     </div>
     <div class="total-cell">
-      <div class="tc-label">Category Bonuses</div>
-      <div class="tc-value" id="grandBonus">0</div>
-    </div>
-    <div class="total-cell">
-      <div class="tc-label">Grand Payout</div>
+      <div class="tc-label">Payment Total</div>
       <div class="tc-value green" id="grandFinal">6,163,435</div>
     </div>
   </div>
@@ -712,37 +689,37 @@ body::before {
       <span class="kp-amt" id="kpiAllAmt">6,163,435</span>
     </div>
     
-        <div class="kpi-pill" style="--pc:#a78bfa;--pg:rgba(167,139,250,.25)">
+        <div class="kpi-pill" data-filter="Recruitments" style="--pc:#a78bfa;--pg:rgba(167,139,250,.25)">
           <span class="kp-icon">⚔️</span>
           <span class="kp-label">Recruitments</span>
           <span class="kp-count">19</span>
           <span class="kp-amt" data-kpi-cat="Recruitments">2,135,000</span>
         </div>
-        <div class="kpi-pill" style="--pc:#38bdf8;--pg:rgba(56,189,248,.25)">
+        <div class="kpi-pill" data-filter="Building" style="--pc:#38bdf8;--pg:rgba(56,189,248,.25)">
           <span class="kp-icon">🏗️</span>
           <span class="kp-label">Building</span>
           <span class="kp-count">55</span>
           <span class="kp-amt" data-kpi-cat="Building">1,126,005</span>
         </div>
-        <div class="kpi-pill" style="--pc:#34d399;--pg:rgba(52,211,153,.25)">
+        <div class="kpi-pill" data-filter="Invoices" style="--pc:#34d399;--pg:rgba(52,211,153,.25)">
           <span class="kp-icon">📜</span>
           <span class="kp-label">Invoices</span>
           <span class="kp-count">13</span>
           <span class="kp-amt" data-kpi-cat="Invoices">603,430</span>
         </div>
-        <div class="kpi-pill" style="--pc:#fb923c;--pg:rgba(251,146,60,.25)">
+        <div class="kpi-pill" data-filter="Demolitions" style="--pc:#fb923c;--pg:rgba(251,146,60,.25)">
           <span class="kp-icon">💥</span>
           <span class="kp-label">Demolitions</span>
           <span class="kp-count">22</span>
           <span class="kp-amt" data-kpi-cat="Demolitions">88,000</span>
         </div>
-        <div class="kpi-pill" style="--pc:#f87171;--pg:rgba(248,113,113,.25)">
+        <div class="kpi-pill" data-filter="Evictions" style="--pc:#f87171;--pg:rgba(248,113,113,.25)">
           <span class="kp-icon">🚪</span>
           <span class="kp-label">Evictions</span>
           <span class="kp-count">4</span>
           <span class="kp-amt" data-kpi-cat="Evictions">36,000</span>
         </div>
-        <div class="kpi-pill" style="--pc:#c084fc;--pg:rgba(192,132,252,.25)">
+        <div class="kpi-pill" data-filter="Scrolls" style="--pc:#c084fc;--pg:rgba(192,132,252,.25)">
           <span class="kp-icon">✨</span>
           <span class="kp-label">Scrolls</span>
           <span class="kp-count">6</span>
@@ -781,9 +758,6 @@ body::before {
             </div>
           </div>
           <div class="cat-total-area">
-            <span class="cat-bonus-label">Category bonus</span>
-            <input class="cat-bonus-input" type="number" min="0" step="1" value="0"
-              data-cat-bonus="Recruitments" placeholder="0" />
             <div class="cat-final-pill" data-cat-final="Recruitments">2,135,000</div>
           </div>
         </div>
@@ -817,7 +791,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">7,000</span>
           </div>
         </div>
@@ -852,7 +826,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">7,000</span>
           </div>
         </div>
@@ -887,7 +861,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">168,000</span>
           </div>
         </div>
@@ -922,7 +896,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">91,000</span>
           </div>
         </div>
@@ -957,7 +931,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">21,000</span>
           </div>
         </div>
@@ -992,7 +966,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">203,000</span>
           </div>
         </div>
@@ -1027,7 +1001,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">189,000</span>
           </div>
         </div>
@@ -1062,7 +1036,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">119,000</span>
           </div>
         </div>
@@ -1097,7 +1071,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">35,000</span>
           </div>
         </div>
@@ -1132,7 +1106,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">14,000</span>
           </div>
         </div>
@@ -1167,7 +1141,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">35,000</span>
           </div>
         </div>
@@ -1202,7 +1176,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">84,000</span>
           </div>
         </div>
@@ -1237,7 +1211,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">21,000</span>
           </div>
         </div>
@@ -1272,7 +1246,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">700,000</span>
           </div>
         </div>
@@ -1307,7 +1281,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">56,000</span>
           </div>
         </div>
@@ -1342,7 +1316,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">35,000</span>
           </div>
         </div>
@@ -1377,7 +1351,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">217,000</span>
           </div>
         </div>
@@ -1412,7 +1386,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">91,000</span>
           </div>
         </div>
@@ -1447,7 +1421,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">42,000</span>
           </div>
         </div>
@@ -1464,9 +1438,6 @@ body::before {
             </div>
           </div>
           <div class="cat-total-area">
-            <span class="cat-bonus-label">Category bonus</span>
-            <input class="cat-bonus-input" type="number" min="0" step="1" value="0"
-              data-cat-bonus="Building" placeholder="0" />
             <div class="cat-final-pill" data-cat-final="Building">1,126,005</div>
           </div>
         </div>
@@ -1506,18 +1477,10 @@ body::before {
             <span class="fv">69,225</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::7" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="69225"
-              data-key="Building::7" data-field="final"
-              placeholder="69225" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">69,225</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_7_1_95485f2e44749a2f.png"><img src="monthly_payment_report_2026-04_assets\Building_7_1_95485f2e44749a2f.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -1557,18 +1520,10 @@ body::before {
             <span class="fv">30,900</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::28" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="30900"
-              data-key="Building::28" data-field="final"
-              placeholder="30900" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">30,900</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_28_1_3994c2a89aa7bd6c.png"><img src="monthly_payment_report_2026-04_assets\Building_28_1_3994c2a89aa7bd6c.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -1608,18 +1563,10 @@ body::before {
             <span class="fv">30,900</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::40" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="30900"
-              data-key="Building::40" data-field="final"
-              placeholder="30900" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">30,900</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_40_1_7ac0f17494746799.png"><img src="monthly_payment_report_2026-04_assets\Building_40_1_7ac0f17494746799.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_40_2_256d45102f14b0ef.png"><img src="monthly_payment_report_2026-04_assets\Building_40_2_256d45102f14b0ef.png" alt="Evidence 2" loading="lazy"><span class="shot-label">Evidence 2</span></button></div></div>
@@ -1659,18 +1606,10 @@ body::before {
             <span class="fv">52,500</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::41" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="52500"
-              data-key="Building::41" data-field="final"
-              placeholder="52500" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">52,500</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_41_1_fca50c166c70d2da.png"><img src="monthly_payment_report_2026-04_assets\Building_41_1_fca50c166c70d2da.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -1710,18 +1649,10 @@ body::before {
             <span class="fv">5,025</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::42" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="5025"
-              data-key="Building::42" data-field="final"
-              placeholder="5025" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">5,025</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_42_1_c10325b7dc4e1737.png"><img src="monthly_payment_report_2026-04_assets\Building_42_1_c10325b7dc4e1737.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_42_2_12d0d40e687e8e9c.png"><img src="monthly_payment_report_2026-04_assets\Building_42_2_12d0d40e687e8e9c.png" alt="Evidence 2" loading="lazy"><span class="shot-label">Evidence 2</span></button></div></div>
@@ -1761,18 +1692,10 @@ body::before {
             <span class="fv">52,500</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::9" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="52500"
-              data-key="Building::9" data-field="final"
-              placeholder="52500" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">52,500</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_9_1_4e7ab5efceb4ada4.png"><img src="monthly_payment_report_2026-04_assets\Building_9_1_4e7ab5efceb4ada4.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_9_2_0639c139d3101170.png"><img src="monthly_payment_report_2026-04_assets\Building_9_2_0639c139d3101170.png" alt="Evidence 2" loading="lazy"><span class="shot-label">Evidence 2</span></button><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_9_3_bcddab4102dc825b.png"><img src="monthly_payment_report_2026-04_assets\Building_9_3_bcddab4102dc825b.png" alt="Evidence 3" loading="lazy"><span class="shot-label">Evidence 3</span></button><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_9_4_2b084e650f2249ec.png"><img src="monthly_payment_report_2026-04_assets\Building_9_4_2b084e650f2249ec.png" alt="Evidence 4" loading="lazy"><span class="shot-label">Evidence 4</span></button></div></div>
@@ -1812,18 +1735,10 @@ body::before {
             <span class="fv">214,720</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::27" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="214720"
-              data-key="Building::27" data-field="final"
-              placeholder="214720" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">214,720</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_27_1_064770cf56141d2a.png"><img src="monthly_payment_report_2026-04_assets\Building_27_1_064770cf56141d2a.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -1863,18 +1778,10 @@ body::before {
             <span class="fv">8,080</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::29" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="8080"
-              data-key="Building::29" data-field="final"
-              placeholder="8080" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">8,080</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_29_1_a83cef2f126c3015.png"><img src="monthly_payment_report_2026-04_assets\Building_29_1_a83cef2f126c3015.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -1914,18 +1821,10 @@ body::before {
             <span class="fv">9,135</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::33" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="9135"
-              data-key="Building::33" data-field="final"
-              placeholder="9135" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">9,135</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_33_1_9666d4bce86e49e6.png"><img src="monthly_payment_report_2026-04_assets\Building_33_1_9666d4bce86e49e6.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -1965,18 +1864,10 @@ body::before {
             <span class="fv">6,060</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::53" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="6060"
-              data-key="Building::53" data-field="final"
-              placeholder="6060" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">6,060</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_53_1_f1899b62dc00dbfd.png"><img src="monthly_payment_report_2026-04_assets\Building_53_1_f1899b62dc00dbfd.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -2016,18 +1907,10 @@ body::before {
             <span class="fv">10,100</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::8" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="10100"
-              data-key="Building::8" data-field="final"
-              placeholder="10100" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">10,100</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_8_1_04bab4193680ba71.png"><img src="monthly_payment_report_2026-04_assets\Building_8_1_04bab4193680ba71.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -2067,18 +1950,10 @@ body::before {
             <span class="fv">6,060</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::22" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="6060"
-              data-key="Building::22" data-field="final"
-              placeholder="6060" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">6,060</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_22_1_3d7a361f979c5708.png"><img src="monthly_payment_report_2026-04_assets\Building_22_1_3d7a361f979c5708.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -2118,18 +1993,10 @@ body::before {
             <span class="fv">10,809</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::36" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="10809"
-              data-key="Building::36" data-field="final"
-              placeholder="10809" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">10,809</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_36_1_02c9398f754e1287.png"><img src="monthly_payment_report_2026-04_assets\Building_36_1_02c9398f754e1287.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_36_2_b8d0f89ad9a9a637.png"><img src="monthly_payment_report_2026-04_assets\Building_36_2_b8d0f89ad9a9a637.png" alt="Evidence 2" loading="lazy"><span class="shot-label">Evidence 2</span></button></div></div>
@@ -2169,18 +2036,10 @@ body::before {
             <span class="fv">10,100</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::21" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="10100"
-              data-key="Building::21" data-field="final"
-              placeholder="10100" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">10,100</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_21_1_ffed4a2d7f1305e7.png"><img src="monthly_payment_report_2026-04_assets\Building_21_1_ffed4a2d7f1305e7.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -2220,18 +2079,10 @@ body::before {
             <span class="fv">24,720</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::34" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="24720"
-              data-key="Building::34" data-field="final"
-              placeholder="24720" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">24,720</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_34_1_1da63bbba4632d5d.png"><img src="monthly_payment_report_2026-04_assets\Building_34_1_1da63bbba4632d5d.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -2271,18 +2122,10 @@ body::before {
             <span class="fv">41,600</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::43" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="41600"
-              data-key="Building::43" data-field="final"
-              placeholder="41600" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">41,600</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_43_1_55ba10f01b270ccf.png"><img src="monthly_payment_report_2026-04_assets\Building_43_1_55ba10f01b270ccf.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -2322,18 +2165,10 @@ body::before {
             <span class="fv">25,625</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::44" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="25625"
-              data-key="Building::44" data-field="final"
-              placeholder="25625" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">25,625</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_44_1_272f60101dd95580.png"><img src="monthly_payment_report_2026-04_assets\Building_44_1_272f60101dd95580.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_44_2_fee2a7d53e596d06.png"><img src="monthly_payment_report_2026-04_assets\Building_44_2_fee2a7d53e596d06.png" alt="Evidence 2" loading="lazy"><span class="shot-label">Evidence 2</span></button></div></div>
@@ -2373,18 +2208,10 @@ body::before {
             <span class="fv">15,225</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::47" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="15225"
-              data-key="Building::47" data-field="final"
-              placeholder="15225" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">15,225</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_47_1_bdaae6d04168087b.png"><img src="monthly_payment_report_2026-04_assets\Building_47_1_bdaae6d04168087b.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -2424,18 +2251,10 @@ body::before {
             <span class="fv">20,400</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::50" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="20400"
-              data-key="Building::50" data-field="final"
-              placeholder="20400" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">20,400</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_50_1_5a41b1e5abc2769c.png"><img src="monthly_payment_report_2026-04_assets\Building_50_1_5a41b1e5abc2769c.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -2475,18 +2294,10 @@ body::before {
             <span class="fv">20,400</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::54" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="20400"
-              data-key="Building::54" data-field="final"
-              placeholder="20400" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">20,400</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_54_1_281e0b4a7ea14063.png"><img src="monthly_payment_report_2026-04_assets\Building_54_1_281e0b4a7ea14063.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -2526,18 +2337,10 @@ body::before {
             <span class="fv">41,600</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::23" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="41600"
-              data-key="Building::23" data-field="final"
-              placeholder="41600" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">41,600</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_23_1_904481a147bf7075.png"><img src="monthly_payment_report_2026-04_assets\Building_23_1_904481a147bf7075.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -2577,18 +2380,10 @@ body::before {
             <span class="fv">0</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::12" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::12" data-field="final"
-              placeholder="0" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">0</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_12_1_fba934c38b8800d1.png"><img src="monthly_payment_report_2026-04_assets\Building_12_1_fba934c38b8800d1.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -2628,18 +2423,10 @@ body::before {
             <span class="fv">12,240</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::13" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="12240"
-              data-key="Building::13" data-field="final"
-              placeholder="12240" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">12,240</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_13_1_24ea147743bbb5bb.png"><img src="monthly_payment_report_2026-04_assets\Building_13_1_24ea147743bbb5bb.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -2679,18 +2466,10 @@ body::before {
             <span class="fv">12,240</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::14" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="12240"
-              data-key="Building::14" data-field="final"
-              placeholder="12240" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">12,240</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_14_1_5431d32430d9d0a1.png"><img src="monthly_payment_report_2026-04_assets\Building_14_1_5431d32430d9d0a1.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -2730,18 +2509,10 @@ body::before {
             <span class="fv">41,600</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::55" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="41600"
-              data-key="Building::55" data-field="final"
-              placeholder="41600" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">41,600</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_55_1_779a142522128471.png"><img src="monthly_payment_report_2026-04_assets\Building_55_1_779a142522128471.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -2781,18 +2552,10 @@ body::before {
             <span class="fv">15,225</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::38" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="15225"
-              data-key="Building::38" data-field="final"
-              placeholder="15225" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">15,225</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_38_1_3c4230ea108ca7aa.png"><img src="monthly_payment_report_2026-04_assets\Building_38_1_3c4230ea108ca7aa.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -2832,18 +2595,10 @@ body::before {
             <span class="fv">6,060</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::49" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="6060"
-              data-key="Building::49" data-field="final"
-              placeholder="6060" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">6,060</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_49_1_021f224514db4bed.png"><img src="monthly_payment_report_2026-04_assets\Building_49_1_021f224514db4bed.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_49_2_14489ed2d32a9f4c.png"><img src="monthly_payment_report_2026-04_assets\Building_49_2_14489ed2d32a9f4c.png" alt="Evidence 2" loading="lazy"><span class="shot-label">Evidence 2</span></button></div></div>
@@ -2883,18 +2638,10 @@ body::before {
             <span class="fv">3,015</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::57" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="3015"
-              data-key="Building::57" data-field="final"
-              placeholder="3015" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">3,015</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_57_1_90396f190dbef3dc.png"><img src="monthly_payment_report_2026-04_assets\Building_57_1_90396f190dbef3dc.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -2934,18 +2681,10 @@ body::before {
             <span class="fv">12,180</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::10" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="12180"
-              data-key="Building::10" data-field="final"
-              placeholder="12180" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">12,180</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_10_1_a656bffae47ddb7f.png"><img src="monthly_payment_report_2026-04_assets\Building_10_1_a656bffae47ddb7f.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -2985,18 +2724,10 @@ body::before {
             <span class="fv">0</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::11" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::11" data-field="final"
-              placeholder="0" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">0</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_11_1_7fe6b77b34b18a56.png"><img src="monthly_payment_report_2026-04_assets\Building_11_1_7fe6b77b34b18a56.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -3036,18 +2767,10 @@ body::before {
             <span class="fv">12,240</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::15" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="12240"
-              data-key="Building::15" data-field="final"
-              placeholder="12240" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">12,240</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_15_1_a4378d0b225b46ab.png"><img src="monthly_payment_report_2026-04_assets\Building_15_1_a4378d0b225b46ab.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -3087,18 +2810,10 @@ body::before {
             <span class="fv">5,369</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::16" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="5369"
-              data-key="Building::16" data-field="final"
-              placeholder="5369" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">5,369</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_16_1_688ba2cd7fb9e4e2.png"><img src="monthly_payment_report_2026-04_assets\Building_16_1_688ba2cd7fb9e4e2.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -3138,18 +2853,10 @@ body::before {
             <span class="fv">5,369</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::17" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="5369"
-              data-key="Building::17" data-field="final"
-              placeholder="5369" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">5,369</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_17_1_71f9a18a8419a556.png"><img src="monthly_payment_report_2026-04_assets\Building_17_1_71f9a18a8419a556.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -3189,18 +2896,10 @@ body::before {
             <span class="fv">0</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::18" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::18" data-field="final"
-              placeholder="0" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">0</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_18_1_120e1db450e49346.png"><img src="monthly_payment_report_2026-04_assets\Building_18_1_120e1db450e49346.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -3240,18 +2939,10 @@ body::before {
             <span class="fv">8,403</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::19" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="8403"
-              data-key="Building::19" data-field="final"
-              placeholder="8403" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">8,403</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_19_1_6f0dfc0d9e9fcae7.png"><img src="monthly_payment_report_2026-04_assets\Building_19_1_6f0dfc0d9e9fcae7.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -3291,18 +2982,10 @@ body::before {
             <span class="fv">8,403</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::24" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="8403"
-              data-key="Building::24" data-field="final"
-              placeholder="8403" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">8,403</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_24_1_c7ee2e147993d748.png"><img src="monthly_payment_report_2026-04_assets\Building_24_1_c7ee2e147993d748.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -3342,18 +3025,10 @@ body::before {
             <span class="fv">16,320</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::26" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="16320"
-              data-key="Building::26" data-field="final"
-              placeholder="16320" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">16,320</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_26_1_64fe0b8ec216b302.png"><img src="monthly_payment_report_2026-04_assets\Building_26_1_64fe0b8ec216b302.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -3393,18 +3068,10 @@ body::before {
             <span class="fv">63,600</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::45" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="63600"
-              data-key="Building::45" data-field="final"
-              placeholder="63600" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">63,600</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_45_1_7b76e245da8265b4.png"><img src="monthly_payment_report_2026-04_assets\Building_45_1_7b76e245da8265b4.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_45_2_af6275cd81719dd4.png"><img src="monthly_payment_report_2026-04_assets\Building_45_2_af6275cd81719dd4.png" alt="Evidence 2" loading="lazy"><span class="shot-label">Evidence 2</span></button></div></div>
@@ -3444,18 +3111,10 @@ body::before {
             <span class="fv">18,540</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::51" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="18540"
-              data-key="Building::51" data-field="final"
-              placeholder="18540" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">18,540</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_51_1_a63c23faf04bb641.jpg"><img src="monthly_payment_report_2026-04_assets\Building_51_1_a63c23faf04bb641.jpg" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -3495,18 +3154,10 @@ body::before {
             <span class="fv">0</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::1" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::1" data-field="final"
-              placeholder="0" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">0</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_1_1_c8b9b1361f6092ad.png"><img src="monthly_payment_report_2026-04_assets\Building_1_1_c8b9b1361f6092ad.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -3546,18 +3197,10 @@ body::before {
             <span class="fv">0</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::2" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::2" data-field="final"
-              placeholder="0" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">0</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_2_1_3737d4f3508d6a75.png"><img src="monthly_payment_report_2026-04_assets\Building_2_1_3737d4f3508d6a75.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -3597,18 +3240,10 @@ body::before {
             <span class="fv">0</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::3" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::3" data-field="final"
-              placeholder="0" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">0</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_3_1_493c74b8dec47600.png"><img src="monthly_payment_report_2026-04_assets\Building_3_1_493c74b8dec47600.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_3_2_0331387ca5fe402f.png"><img src="monthly_payment_report_2026-04_assets\Building_3_2_0331387ca5fe402f.png" alt="Evidence 2" loading="lazy"><span class="shot-label">Evidence 2</span></button><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_3_3_b15c06ddce6406fa.png"><img src="monthly_payment_report_2026-04_assets\Building_3_3_b15c06ddce6406fa.png" alt="Evidence 3" loading="lazy"><span class="shot-label">Evidence 3</span></button><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_3_4_6043a82c3ae0e4db.png"><img src="monthly_payment_report_2026-04_assets\Building_3_4_6043a82c3ae0e4db.png" alt="Evidence 4" loading="lazy"><span class="shot-label">Evidence 4</span></button></div></div>
@@ -3648,18 +3283,10 @@ body::before {
             <span class="fv">0</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::4" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::4" data-field="final"
-              placeholder="0" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">0</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_4_1_8a06350b46904c18.png"><img src="monthly_payment_report_2026-04_assets\Building_4_1_8a06350b46904c18.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -3699,18 +3326,10 @@ body::before {
             <span class="fv">0</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::5" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::5" data-field="final"
-              placeholder="0" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">0</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_5_1_6410603ab4d2ab13.png"><img src="monthly_payment_report_2026-04_assets\Building_5_1_6410603ab4d2ab13.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -3750,18 +3369,10 @@ body::before {
             <span class="fv">0</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::6" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::6" data-field="final"
-              placeholder="0" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">0</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_6_1_e16c4a8033232b80.png"><img src="monthly_payment_report_2026-04_assets\Building_6_1_e16c4a8033232b80.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -3801,18 +3412,10 @@ body::before {
             <span class="fv">30,900</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::25" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="30900"
-              data-key="Building::25" data-field="final"
-              placeholder="30900" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">30,900</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_25_1_a6c54c27ab7fe7a3.png"><img src="monthly_payment_report_2026-04_assets\Building_25_1_a6c54c27ab7fe7a3.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -3852,18 +3455,10 @@ body::before {
             <span class="fv">0</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::30" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::30" data-field="final"
-              placeholder="0" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">0</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_30_1_163d3e5ead9f6236.jpeg"><img src="monthly_payment_report_2026-04_assets\Building_30_1_163d3e5ead9f6236.jpeg" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -3903,18 +3498,10 @@ body::before {
             <span class="fv">0</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::31" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::31" data-field="final"
-              placeholder="0" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">0</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_31_1_b906b37f301fb282.png"><img src="monthly_payment_report_2026-04_assets\Building_31_1_b906b37f301fb282.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -3954,18 +3541,10 @@ body::before {
             <span class="fv">41,600</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::32" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="41600"
-              data-key="Building::32" data-field="final"
-              placeholder="41600" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">41,600</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_32_1_b92fb5142f50d811.png"><img src="monthly_payment_report_2026-04_assets\Building_32_1_b92fb5142f50d811.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -4005,18 +3584,10 @@ body::before {
             <span class="fv">1,002</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::35" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="1002"
-              data-key="Building::35" data-field="final"
-              placeholder="1002" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">1,002</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_35_1_b7536b5e587d7e40.png"><img src="monthly_payment_report_2026-04_assets\Building_35_1_b7536b5e587d7e40.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -4056,18 +3627,10 @@ body::before {
             <span class="fv">41,600</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::46" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="41600"
-              data-key="Building::46" data-field="final"
-              placeholder="41600" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">41,600</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_46_1_96941efcd90a257b.png"><img src="monthly_payment_report_2026-04_assets\Building_46_1_96941efcd90a257b.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -4107,18 +3670,10 @@ body::before {
             <span class="fv">10,100</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::48" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="10100"
-              data-key="Building::48" data-field="final"
-              placeholder="10100" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">10,100</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_48_1_366083fb49320bf5.png"><img src="monthly_payment_report_2026-04_assets\Building_48_1_366083fb49320bf5.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -4158,18 +3713,10 @@ body::before {
             <span class="fv">20,400</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::52" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="20400"
-              data-key="Building::52" data-field="final"
-              placeholder="20400" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">20,400</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_52_1_86e3c748b03ba3aa.png"><img src="monthly_payment_report_2026-04_assets\Building_52_1_86e3c748b03ba3aa.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -4209,18 +3756,10 @@ body::before {
             <span class="fv">30,900</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::20" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="30900"
-              data-key="Building::20" data-field="final"
-              placeholder="30900" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">30,900</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_20_1_e45ecd62bb2c838a.jpg"><img src="monthly_payment_report_2026-04_assets\Building_20_1_e45ecd62bb2c838a.jpg" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_20_2_d135494d72571675.jpg"><img src="monthly_payment_report_2026-04_assets\Building_20_2_d135494d72571675.jpg" alt="Evidence 2" loading="lazy"><span class="shot-label">Evidence 2</span></button></div></div>
@@ -4260,18 +3799,10 @@ body::before {
             <span class="fv">3,015</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Building::56" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="3015"
-              data-key="Building::56" data-field="final"
-              placeholder="3015" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">3,015</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Building_56_1_ac932381808adf35.png"><img src="monthly_payment_report_2026-04_assets\Building_56_1_ac932381808adf35.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -4287,9 +3818,6 @@ body::before {
             </div>
           </div>
           <div class="cat-total-area">
-            <span class="cat-bonus-label">Category bonus</span>
-            <input class="cat-bonus-input" type="number" min="0" step="1" value="0"
-              data-cat-bonus="Invoices" placeholder="0" />
             <div class="cat-final-pill" data-cat-final="Invoices">603,430</div>
           </div>
         </div>
@@ -4327,7 +3855,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">3,000</span>
           </div>
         </div>
@@ -4366,7 +3894,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">4,500</span>
           </div>
         </div>
@@ -4405,7 +3933,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">74,500</span>
           </div>
         </div>
@@ -4444,7 +3972,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">26,400</span>
           </div>
         </div>
@@ -4483,7 +4011,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">124,000</span>
           </div>
         </div>
@@ -4522,7 +4050,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">111,000</span>
           </div>
         </div>
@@ -4561,7 +4089,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">16</span>
           </div>
         </div>
@@ -4600,7 +4128,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">134,000</span>
           </div>
         </div>
@@ -4639,7 +4167,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">42,600</span>
           </div>
         </div>
@@ -4678,7 +4206,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">67,200</span>
           </div>
         </div>
@@ -4717,7 +4245,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">10,214</span>
           </div>
         </div>
@@ -4756,7 +4284,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">3,000</span>
           </div>
         </div>
@@ -4795,7 +4323,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">3,000</span>
           </div>
         </div>
@@ -4812,9 +4340,6 @@ body::before {
             </div>
           </div>
           <div class="cat-total-area">
-            <span class="cat-bonus-label">Category bonus</span>
-            <input class="cat-bonus-input" type="number" min="0" step="1" value="0"
-              data-cat-bonus="Demolitions" placeholder="0" />
             <div class="cat-final-pill" data-cat-final="Demolitions">88,000</div>
           </div>
         </div>
@@ -4850,18 +4375,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::13" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::13" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_13_1_090f000fcfdb2f71.jpg"><img src="monthly_payment_report_2026-04_assets\Demolitions_13_1_090f000fcfdb2f71.jpg" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -4897,18 +4414,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::1" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::1" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_1_1_e68287784c56be7f.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_1_1_e68287784c56be7f.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -4944,18 +4453,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::2" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::2" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_2_1_a459346502d53fe0.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_2_1_a459346502d53fe0.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -4991,18 +4492,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::3" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::3" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_3_1_beeee211588c7b13.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_3_1_beeee211588c7b13.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5038,18 +4531,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::4" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::4" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_4_1_188bf05b93e95a11.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_4_1_188bf05b93e95a11.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5085,18 +4570,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::5" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::5" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_5_1_bd35837fa4828c4e.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_5_1_bd35837fa4828c4e.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5132,18 +4609,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::6" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::6" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_6_1_1a0d98a63e3ef91d.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_6_1_1a0d98a63e3ef91d.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5179,18 +4648,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::7" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::7" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_7_1_9c6f559facc4f830.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_7_1_9c6f559facc4f830.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5226,18 +4687,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::8" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::8" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_8_1_3e197ea3e1e76112.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_8_1_3e197ea3e1e76112.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5273,18 +4726,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::9" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::9" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_9_1_ed7dfb7452b85859.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_9_1_ed7dfb7452b85859.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5320,18 +4765,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::10" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::10" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_10_1_58147e62316b75c5.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_10_1_58147e62316b75c5.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5367,18 +4804,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::11" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::11" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_11_1_38a06a16c531a26c.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_11_1_38a06a16c531a26c.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5414,18 +4843,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::12" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::12" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_12_1_d1397ae614844f0e.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_12_1_d1397ae614844f0e.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5461,18 +4882,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::15" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::15" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_15_1_70c7eb6e09d43557.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_15_1_70c7eb6e09d43557.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5508,18 +4921,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::16" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::16" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_16_1_3a9141635dbecbc3.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_16_1_3a9141635dbecbc3.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5555,18 +4960,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::18" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::18" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_18_1_b058ae729ccadd8b.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_18_1_b058ae729ccadd8b.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5602,18 +4999,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::19" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::19" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_19_1_5ce5bec553e38c34.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_19_1_5ce5bec553e38c34.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5649,18 +5038,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::20" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::20" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_20_1_cf6eaf7e4207914e.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_20_1_cf6eaf7e4207914e.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5696,18 +5077,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::21" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::21" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_21_1_49314b0751cf4386.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_21_1_49314b0751cf4386.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5743,18 +5116,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::22" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::22" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_22_1_a6d4ec20e2b09ece.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_22_1_a6d4ec20e2b09ece.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5790,18 +5155,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::23" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::23" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_23_1_17934fc360f7f6f0.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_23_1_17934fc360f7f6f0.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5837,18 +5194,10 @@ body::before {
             <span class="fv">4,000</span>
           </div></div>
       
-        <div class="finance-block editable">
+        <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="Demolitions::17" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="4000"
-              data-key="Demolitions::17" data-field="final"
-              placeholder="4000" />
+            <span class="fin-label">Payment</span>
+            <span class="fin-static">4,000</span>
           </div>
         </div>
       <div class="evidence-block"><div class="evidence-label">Evidence</div><div class="shot-grid"><button class="shot" type="button" data-full="monthly_payment_report_2026-04_assets\Demolitions_17_1_003d65cc53da7828.png"><img src="monthly_payment_report_2026-04_assets\Demolitions_17_1_003d65cc53da7828.png" alt="Evidence 1" loading="lazy"><span class="shot-label">Evidence 1</span></button></div></div>
@@ -5864,9 +5213,6 @@ body::before {
             </div>
           </div>
           <div class="cat-total-area">
-            <span class="cat-bonus-label">Category bonus</span>
-            <input class="cat-bonus-input" type="number" min="0" step="1" value="0"
-              data-cat-bonus="Evictions" placeholder="0" />
             <div class="cat-final-pill" data-cat-final="Evictions">36,000</div>
           </div>
         </div>
@@ -5900,7 +5246,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">12,000</span>
           </div>
         </div>
@@ -5935,7 +5281,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">10,000</span>
           </div>
         </div>
@@ -5970,7 +5316,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">2,000</span>
           </div>
         </div>
@@ -6005,7 +5351,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">12,000</span>
           </div>
         </div>
@@ -6022,9 +5368,6 @@ body::before {
             </div>
           </div>
           <div class="cat-total-area">
-            <span class="cat-bonus-label">Category bonus</span>
-            <input class="cat-bonus-input" type="number" min="0" step="1" value="0"
-              data-cat-bonus="Scrolls" placeholder="0" />
             <div class="cat-final-pill" data-cat-final="Scrolls">2,175,000</div>
           </div>
         </div>
@@ -6058,7 +5401,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">325,000</span>
           </div>
         </div>
@@ -6093,7 +5436,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">1,550,000</span>
           </div>
         </div>
@@ -6128,7 +5471,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">120,000</span>
           </div>
         </div>
@@ -6163,7 +5506,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">50,000</span>
           </div>
         </div>
@@ -6198,7 +5541,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">125,000</span>
           </div>
         </div>
@@ -6233,7 +5576,7 @@ body::before {
       
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">5,000</span>
           </div>
         </div>
@@ -6820,7 +6163,7 @@ body::before {
   <!-- ── Footer ────────────────────────────────────────────────────────── -->
   <footer class="site-footer">
     <span>Evidence assets · <code>D:\pythonforge\Recrep\monthly_payment_report_2026-04_assets</code></span>
-    <span>Building &amp; Demolition rows are editable · Bonuses apply to category totals</span>
+    <span>Building &amp; Demolition rows are included as records · Payments are shown without bonuses</span>
   </footer>
 </div>
 
@@ -6833,183 +6176,39 @@ body::before {
 </div>
 
 <script>
+
 (function() {
   'use strict';
 
-  const STORAGE_KEY = 'ledger-overrides::April 2026';
-
-  // ── State ──────────────────────────────────────────────────────────────
-  const catAutoTotals = {};
-  document.querySelectorAll('.cat-section').forEach(s => {
-    const cat = s.dataset.section;
-    let sum = 0;
-    s.querySelectorAll('.record-card').forEach(c => sum += Number(c.dataset.auto || 0));
-    catAutoTotals[cat] = sum;
-  });
-
-  // ── LocalStorage ──────────────────────────────────────────────────────
-  function loadOverrides() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
-  }
-  function saveOverrides(map) { localStorage.setItem(STORAGE_KEY, JSON.stringify(map)); }
-
-  // ── Apply saved overrides ─────────────────────────────────────────────
-  function applyOverrides() {
-    const ov = loadOverrides();
-    document.querySelectorAll('[data-key][data-field]').forEach(input => {
-      const entry = ov[input.dataset.key];
-      if (entry && entry[input.dataset.field] != null && entry[input.dataset.field] !== '')
-        input.value = entry[input.dataset.field];
-    });
-    document.querySelectorAll('[data-cat-bonus]').forEach(input => {
-      const cat = input.dataset.catBonus;
-      if (ov['__catbonus__'] && ov['__catbonus__'][cat] != null)
-        input.value = ov['__catbonus__'][cat];
-    });
-    recalcAll();
-  }
-
-  // ── Recalculate all totals ────────────────────────────────────────────
-  function recalcAll() {
-    const ov = loadOverrides();
-    let grandAuto = 0, grandBonus = 0, grandFinal = 0;
-    const catFinals = {};
-
-    // Per-category
-    document.querySelectorAll('.cat-section').forEach(section => {
-      const cat = section.dataset.section;
-      const catBonus = Number(section.querySelector('[data-cat-bonus]')?.value || 0);
-      let catAuto = 0;
-
-      section.querySelectorAll('.record-card').forEach(card => {
-        const key = card.dataset.key;
-        const auto = Number(card.dataset.auto || 0);
-        const finalInput = card.querySelector('input[data-field="final"]');
-        const final = finalInput
-          ? (finalInput.value === '' ? auto : Number(finalInput.value))
-          : auto;
-        catAuto += final;
-      });
-
-      const catTotal = catAuto + catBonus;
-      catFinals[cat] = catTotal;
-
-      // Update cat final pill
-      const pill = section.querySelector('[data-cat-final]');
-      if (pill) pill.textContent = formatMoney(catTotal);
-
-      // Save cat bonus
-      ov['__catbonus__'] = ov['__catbonus__'] || {};
-      ov['__catbonus__'][cat] = catBonus;
-
-      grandAuto += catAuto;
-      grandBonus += catBonus;
-      grandFinal += catTotal;
-    });
-
-    saveOverrides(ov);
-
-    // Grand totals
-    document.getElementById('grandAuto').textContent = formatMoney(grandAuto);
-    document.getElementById('grandBonus').textContent = formatMoney(grandBonus);
-    document.getElementById('grandFinal').textContent = formatMoney(grandFinal);
-
-    // KPI pill amounts
-    document.getElementById('kpiAllAmt').textContent = formatMoney(grandFinal);
-    document.querySelectorAll('[data-kpi-cat]').forEach(el => {
-      const cat = el.dataset.kpiCat;
-      if (catFinals[cat] != null) el.textContent = formatMoney(catFinals[cat]);
-    });
-
-    // Staff totals — update staff cards
-    updateStaffView(catFinals);
-  }
-
-  function formatMoney(n) {
-    return n == null ? '—' : Math.round(n).toLocaleString();
-  }
-
-  // ── Staff view recalc ─────────────────────────────────────────────────
-  function updateStaffView(catFinals) {
-    // Per-staff totals: sum final values from category cards belonging to each staff
-    const staffTotals = {};
-    const staffCatTotals = {};
-
-    document.querySelectorAll('.record-card').forEach(card => {
-      const staffId = card.dataset.staff;
-      const cat = card.dataset.category;
-      const auto = Number(card.dataset.auto || 0);
-      const finalInput = card.querySelector('input[data-field="final"]');
-      const finalVal = finalInput
-        ? (finalInput.value === '' ? auto : Number(finalInput.value))
-        : auto;
-
-      // We add per-card final only; category bonus is split evenly in view
-      staffTotals[staffId] = (staffTotals[staffId] || 0) + finalVal;
-      staffCatTotals[staffId] = staffCatTotals[staffId] || {};
-      staffCatTotals[staffId][cat] = (staffCatTotals[staffId][cat] || 0) + finalVal;
-    });
-
-    // Add proportional share of category bonus to each staff member
-    document.querySelectorAll('.cat-section').forEach(section => {
-      const cat = section.dataset.section;
-      const catBonus = Number(section.querySelector('[data-cat-bonus]')?.value || 0);
-      if (!catBonus) return;
-      // Count staff with records in this category
-      const staffInCat = new Set();
-      section.querySelectorAll('.record-card').forEach(c => staffInCat.add(c.dataset.staff));
-      const share = Math.round(catBonus / (staffInCat.size || 1));
-      staffInCat.forEach(sid => {
-        staffTotals[sid] = (staffTotals[sid] || 0) + share;
-      });
-    });
-
-    // Update DOM in staff view
-    document.querySelectorAll('[data-staff-total]').forEach(el => {
-      const sid = el.dataset.staffTotal;
-      if (staffTotals[sid] != null) el.textContent = formatMoney(staffTotals[sid]);
-    });
-    document.querySelectorAll('[data-staff-cat]').forEach(el => {
-      const [sid, cat] = el.dataset.staffCat.split(':');
-      if (staffCatTotals[sid] && staffCatTotals[sid][cat] != null)
-        el.textContent = formatMoney(staffCatTotals[sid][cat]);
-    });
-  }
-
-  // ── Input events ──────────────────────────────────────────────────────
-  document.addEventListener('input', e => {
-    const input = e.target;
-    if (input.dataset.field) {
-      const ov = loadOverrides();
-      ov[input.dataset.key] = ov[input.dataset.key] || {};
-      ov[input.dataset.key][input.dataset.field] = input.value === '' ? null : Number(input.value);
-      saveOverrides(ov);
-    }
-    recalcAll();
-  });
-
-  // ── Filter / view ─────────────────────────────────────────────────────
   const categoryView = document.getElementById('categoryView');
   const staffView = document.getElementById('staffView');
+  const kpiRow = document.getElementById('kpiRow');
+  const searchInput = document.getElementById('searchInput');
+  const exportBtn = document.getElementById('exportBtn');
+  const viewButtons = document.querySelectorAll('.view-btn');
+
   let currentView = 'category';
   let activeFilter = 'all';
 
   function applyFilter() {
-    const query = document.getElementById('searchInput').value.trim().toLowerCase();
+    const query = searchInput.value.trim().toLowerCase();
+
     if (currentView === 'category') {
       document.querySelectorAll('.cat-section').forEach(section => {
         const cat = section.dataset.section;
         const show = activeFilter === 'all' || cat === activeFilter;
         section.classList.toggle('visible', show);
         if (!show) return;
+
         let anyVisible = false;
         section.querySelectorAll('.record-card').forEach(card => {
           const ok = !query || (card.dataset.search || '').includes(query);
           card.style.display = ok ? '' : 'none';
           if (ok) anyVisible = true;
         });
-        section.querySelector('.empty-state') &&
-          (section.querySelector('.empty-state').style.display = anyVisible ? 'none' : '');
+
+        const empty = section.querySelector('.empty-state');
+        if (empty) empty.style.display = anyVisible ? 'none' : '';
       });
     } else {
       document.querySelectorAll('.staff-card').forEach(card => {
@@ -7019,38 +6218,42 @@ body::before {
     }
   }
 
-  // KPI filters
-  document.getElementById('kpiRow').addEventListener('click', e => {
+  function setView(view) {
+    currentView = view;
+    viewButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.view === view));
+    if (view === 'category') {
+      categoryView.style.display = '';
+      staffView.classList.remove('visible');
+    } else {
+      categoryView.style.display = 'none';
+      staffView.classList.add('visible');
+    }
+    applyFilter();
+  }
+
+  kpiRow.addEventListener('click', e => {
     const pill = e.target.closest('.kpi-pill');
     if (!pill) return;
-    document.querySelectorAll('.kpi-pill').forEach(p => p.classList.remove('active'));
+    kpiRow.querySelectorAll('.kpi-pill').forEach(p => p.classList.remove('active'));
     pill.classList.add('active');
     activeFilter = pill.dataset.filter || 'all';
-    applyFilter();
+    setView('category');
   });
 
-  document.getElementById('searchInput').addEventListener('input', applyFilter);
+  searchInput.addEventListener('input', applyFilter);
 
-  // View toggle
-  document.querySelectorAll('.view-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentView = btn.dataset.view;
-      if (currentView === 'category') {
-        categoryView.style.display = '';
-        staffView.classList.remove('visible');
-      } else {
-        categoryView.style.display = 'none';
-        staffView.classList.add('visible');
-      }
-      applyFilter();
-    });
+  viewButtons.forEach(btn => {
+    btn.addEventListener('click', () => setView(btn.dataset.view));
   });
 
-  // ── Lightbox ──────────────────────────────────────────────────────────
   const lightbox = document.getElementById('lightbox');
   const lightboxImg = document.getElementById('lightboxImg');
+  const closeLightbox = () => {
+    lightbox.classList.remove('open');
+    lightbox.setAttribute('aria-hidden', 'true');
+    lightboxImg.src = '';
+  };
+
   document.addEventListener('click', e => {
     const shot = e.target.closest('.shot');
     if (!shot) return;
@@ -7060,53 +6263,168 @@ body::before {
     lightbox.classList.add('open');
     lightbox.setAttribute('aria-hidden', 'false');
   });
-  function closeLightbox() {
-    lightbox.classList.remove('open');
-    lightbox.setAttribute('aria-hidden', 'true');
-    lightboxImg.src = '';
-  }
-  lightbox.addEventListener('click', e => { if (e.target === lightbox) closeLightbox(); });
+
+  lightbox.addEventListener('click', e => {
+    if (e.target === lightbox) closeLightbox();
+  });
   document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
-
-  // ── PDF export ────────────────────────────────────────────────────────
-  document.getElementById('exportBtn').addEventListener('click', async () => {
-    const btn = document.getElementById('exportBtn');
-    btn.textContent = 'Generating…';
-    btn.disabled = true;
-
-    // Temporarily show all sections for PDF
-    const sections = document.querySelectorAll('.cat-section');
-    sections.forEach(s => s.classList.add('visible'));
-
-    const opt = {
-      margin: [10, 10, 10, 10],
-      filename: 'payment-ledger-April-2026.pdf',
-      image: { type: 'jpeg', quality: 0.92 },
-      html2canvas: { scale: 2, useCORS: true, logging: false },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-    };
-
-    try {
-      await html2pdf().set(opt).from(document.querySelector('.wrap')).save();
-    } catch (err) {
-      alert('PDF export failed. Try printing with Ctrl+P instead.');
-    }
-
-    // Restore filter state
-    applyFilter();
-    btn.innerHTML = '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 16V4m0 12-4-4m4 4 4-4M4 20h16"/></svg> Export PDF';
-    btn.disabled = false;
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeLightbox();
   });
 
-  // ── Init ──────────────────────────────────────────────────────────────
-  applyOverrides();
-  applyFilter();
+  function copyHeadStylesInto(targetRoot) {
+    // Copy all <style> tags from <head> so the cloned PDF root keeps the same layout rules.
+    document.head.querySelectorAll('style').forEach(node => {
+      targetRoot.appendChild(node.cloneNode(true));
+    });
+  }
 
-  // Show all categories by default
+  async function exportPdf() {
+    const btn = exportBtn;
+    const label = btn.innerHTML;
+    btn.disabled = true;
+    btn.textContent = 'Generating…';
+
+    const exportRoot = document.createElement('div');
+    exportRoot.id = 'pdfExportRoot';
+    exportRoot.style.position = 'fixed';
+    exportRoot.style.left = '-10000px';
+    exportRoot.style.top = '0';
+    exportRoot.style.width = '1280px';
+    exportRoot.style.background = '#ffffff';
+    exportRoot.style.color = '#111111';
+
+    // Critical: bring the page's head styles into the PDF clone.
+    copyHeadStylesInto(exportRoot);
+
+    const pdfStyle = document.createElement('style');
+    pdfStyle.textContent = `
+      #pdfExportRoot, #pdfExportRoot * {
+        animation: none !important;
+        transition: none !important;
+      }
+
+      #pdfExportRoot .wrap {
+        max-width: 1280px !important;
+      }
+
+      #pdfExportRoot .toolbar,
+      #pdfExportRoot .site-footer,
+      #pdfExportRoot .lightbox,
+      #pdfExportRoot .view-toggle,
+      #pdfExportRoot .search-wrap,
+      #pdfExportRoot .export-btn {
+        display: none !important;
+      }
+
+      #pdfExportRoot #staffView {
+        display: none !important;
+      }
+
+      #pdfExportRoot #categoryView {
+        display: block !important;
+      }
+
+      #pdfExportRoot .cat-section,
+      #pdfExportRoot .cat-section.visible {
+        display: block !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      #pdfExportRoot .records-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      }
+
+      #pdfExportRoot .record-card,
+      #pdfExportRoot .fields-block,
+      #pdfExportRoot .field-row,
+      #pdfExportRoot .finance-block,
+      #pdfExportRoot .fin-col,
+      #pdfExportRoot .totals-bar,
+      #pdfExportRoot .kpi-pill {
+        border-color: #d7d7d7 !important;
+        background: #ffffff !important;
+        color: #111111 !important;
+      }
+
+      #pdfExportRoot .hero-title,
+      #pdfExportRoot .hero-month,
+      #pdfExportRoot .tc-value,
+      #pdfExportRoot .kp-amt,
+      #pdfExportRoot .cat-final-pill,
+      #pdfExportRoot .sc-total {
+        color: #111111 !important;
+        -webkit-text-fill-color: #111111 !important;
+      }
+    `;
+    exportRoot.appendChild(pdfStyle);
+
+    const source = document.querySelector('.wrap');
+    const clone = source.cloneNode(true);
+
+    clone.querySelector('.toolbar')?.remove();
+    clone.querySelector('.site-footer')?.remove();
+    clone.querySelector('.lightbox')?.remove();
+    clone.querySelector('#staffView')?.remove();
+
+    const pdfCategoryView = clone.querySelector('#categoryView');
+    if (pdfCategoryView) pdfCategoryView.style.display = 'block';
+
+    clone.querySelectorAll('.cat-section').forEach(section => {
+      section.classList.add('visible');
+      section.style.display = 'block';
+      section.style.pageBreakInside = 'avoid';
+      section.style.breakInside = 'avoid';
+    });
+
+    clone.querySelectorAll('*').forEach(el => {
+      el.style.animation = 'none';
+      el.style.transition = 'none';
+    });
+
+    exportRoot.appendChild(clone);
+    document.body.appendChild(exportRoot);
+
+    try {
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
+
+      const opt = {
+        margin: [8, 8, 8, 8],
+        filename: 'April-2026.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          scrollY: 0,
+          windowWidth: 1280,
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css', 'legacy'] },
+      };
+
+      await html2pdf().set(opt).from(exportRoot).save();
+    } catch (err) {
+      alert('PDF export failed. Try printing with Ctrl+P instead.');
+    } finally {
+      exportRoot.remove();
+      btn.innerHTML = label;
+      btn.disabled = false;
+    }
+  }
+
+  exportBtn.addEventListener('click', exportPdf);
+
   document.querySelectorAll('.cat-section').forEach(s => s.classList.add('visible'));
+  applyFilter();
 })();
+
 </script>
 </body>
 </html>

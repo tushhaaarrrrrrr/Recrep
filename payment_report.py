@@ -497,8 +497,6 @@ async def load_bundle(month_str: str, output_path: Path, skip_empty: bool = Fals
     for did, recs in grouped["recruitments"].items():
         count = len(recs)
         auto = count * 7000
-        # Bonus applied to category total — stored on the record for display only;
-        # actual bonus field is category-level in JS.
         add_record(
             "Recruitments",
             did,
@@ -691,28 +689,10 @@ def _render_record_card(rec: ReportRecord) -> str:
             <span class="fv">{esc(val) if val not in (None, "") else "—"}</span>
           </div>'''
 
-    # Finance block — editable cards show inputs, auto cards show static values
-    if rec.is_editable:
-        finance_block = f'''
-        <div class="finance-block editable">
-          <div class="fin-col">
-            <span class="fin-label">Bonus</span>
-            <input class="fin-input" type="number" min="0" step="1" value="0"
-              data-key="{esc(rec.category)}::{esc(rec.record_id)}" data-field="bonus"
-              placeholder="0" />
-          </div>
-          <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
-            <input class="fin-input" type="number" min="0" step="1" value="{esc(rec.auto_raw)}"
-              data-key="{esc(rec.category)}::{esc(rec.record_id)}" data-field="final"
-              placeholder="{esc(rec.auto_raw)}" />
-          </div>
-        </div>'''
-    else:
-        finance_block = f'''
+    finance_block = f'''
         <div class="finance-block static">
           <div class="fin-col">
-            <span class="fin-label">Final Payout</span>
+            <span class="fin-label">Payment</span>
             <span class="fin-static">{esc(money(rec.final_raw))}</span>
           </div>
         </div>'''
@@ -811,9 +791,6 @@ def render_html(bundle: ReportBundle) -> str:
             </div>
           </div>
           <div class="cat-total-area">
-            <span class="cat-bonus-label">Category bonus</span>
-            <input class="cat-bonus-input" type="number" min="0" step="1" value="0"
-              data-cat-bonus="{esc(cat)}" placeholder="0" />
             <div class="cat-final-pill" data-cat-final="{esc(cat)}">{esc(money(ct['final']))}</div>
           </div>
         </div>
@@ -842,7 +819,7 @@ def render_html(bundle: ReportBundle) -> str:
         meta = CAT_META[cat]
         ct = cat_totals[cat]
         cat_pills += f'''
-        <div class="kpi-pill" style="--pc:{meta['color']};--pg:{meta['glow']}">
+        <div class="kpi-pill" data-filter="{esc(cat)}" style="--pc:{meta['color']};--pg:{meta['glow']}">
           <span class="kp-icon">{meta['icon']}</span>
           <span class="kp-label">{esc(cat)}</span>
           <span class="kp-count">{ct['count']:,}</span>
@@ -1158,25 +1135,6 @@ body::before {{
   gap: 10px;
   flex-wrap: wrap;
 }}
-.cat-bonus-label {{
-  font-size: 11px;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: var(--muted);
-}}
-.cat-bonus-input {{
-  width: 100px;
-  padding: 7px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border2);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font-family: var(--font-body);
-  font-size: 13px;
-  outline: none;
-  transition: border-color .15s;
-}}
-.cat-bonus-input:focus {{ border-color: var(--cat-color, var(--border2)); }}
 .cat-final-pill {{
   padding: 7px 16px;
   border-radius: 99px;
@@ -1548,11 +1506,7 @@ body::before {{
       <div class="tc-value" id="grandAuto">{esc(money(grand_auto))}</div>
     </div>
     <div class="total-cell">
-      <div class="tc-label">Category Bonuses</div>
-      <div class="tc-value" id="grandBonus">{esc(money(0))}</div>
-    </div>
-    <div class="total-cell">
-      <div class="tc-label">Grand Payout</div>
+      <div class="tc-label">Payment Total</div>
       <div class="tc-value green" id="grandFinal">{esc(money(grand_final))}</div>
     </div>
   </div>
@@ -1601,7 +1555,7 @@ body::before {{
   <!-- ── Footer ────────────────────────────────────────────────────────── -->
   <footer class="site-footer">
     <span>Evidence assets · <code>{esc(str(bundle.assets_dir))}</code></span>
-    <span>Building &amp; Demolition rows are editable · Bonuses apply to category totals</span>
+    <span>Building &amp; Demolition rows are included as records · Payments are shown without bonuses</span>
   </footer>
 </div>
 
@@ -1614,183 +1568,39 @@ body::before {{
 </div>
 
 <script>
+
 (function() {{
   'use strict';
 
-  const STORAGE_KEY = 'ledger-overrides::{esc(bundle.month_label)}';
-
-  // ── State ──────────────────────────────────────────────────────────────
-  const catAutoTotals = {{}};
-  document.querySelectorAll('.cat-section').forEach(s => {{
-    const cat = s.dataset.section;
-    let sum = 0;
-    s.querySelectorAll('.record-card').forEach(c => sum += Number(c.dataset.auto || 0));
-    catAutoTotals[cat] = sum;
-  }});
-
-  // ── LocalStorage ──────────────────────────────────────────────────────
-  function loadOverrides() {{
-    try {{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{{}}'); }} catch {{ return {{}}; }}
-  }}
-  function saveOverrides(map) {{ localStorage.setItem(STORAGE_KEY, JSON.stringify(map)); }}
-
-  // ── Apply saved overrides ─────────────────────────────────────────────
-  function applyOverrides() {{
-    const ov = loadOverrides();
-    document.querySelectorAll('[data-key][data-field]').forEach(input => {{
-      const entry = ov[input.dataset.key];
-      if (entry && entry[input.dataset.field] != null && entry[input.dataset.field] !== '')
-        input.value = entry[input.dataset.field];
-    }});
-    document.querySelectorAll('[data-cat-bonus]').forEach(input => {{
-      const cat = input.dataset.catBonus;
-      if (ov['__catbonus__'] && ov['__catbonus__'][cat] != null)
-        input.value = ov['__catbonus__'][cat];
-    }});
-    recalcAll();
-  }}
-
-  // ── Recalculate all totals ────────────────────────────────────────────
-  function recalcAll() {{
-    const ov = loadOverrides();
-    let grandAuto = 0, grandBonus = 0, grandFinal = 0;
-    const catFinals = {{}};
-
-    // Per-category
-    document.querySelectorAll('.cat-section').forEach(section => {{
-      const cat = section.dataset.section;
-      const catBonus = Number(section.querySelector('[data-cat-bonus]')?.value || 0);
-      let catAuto = 0;
-
-      section.querySelectorAll('.record-card').forEach(card => {{
-        const key = card.dataset.key;
-        const auto = Number(card.dataset.auto || 0);
-        const finalInput = card.querySelector('input[data-field="final"]');
-        const final = finalInput
-          ? (finalInput.value === '' ? auto : Number(finalInput.value))
-          : auto;
-        catAuto += final;
-      }});
-
-      const catTotal = catAuto + catBonus;
-      catFinals[cat] = catTotal;
-
-      // Update cat final pill
-      const pill = section.querySelector('[data-cat-final]');
-      if (pill) pill.textContent = formatMoney(catTotal);
-
-      // Save cat bonus
-      ov['__catbonus__'] = ov['__catbonus__'] || {{}};
-      ov['__catbonus__'][cat] = catBonus;
-
-      grandAuto += catAuto;
-      grandBonus += catBonus;
-      grandFinal += catTotal;
-    }});
-
-    saveOverrides(ov);
-
-    // Grand totals
-    document.getElementById('grandAuto').textContent = formatMoney(grandAuto);
-    document.getElementById('grandBonus').textContent = formatMoney(grandBonus);
-    document.getElementById('grandFinal').textContent = formatMoney(grandFinal);
-
-    // KPI pill amounts
-    document.getElementById('kpiAllAmt').textContent = formatMoney(grandFinal);
-    document.querySelectorAll('[data-kpi-cat]').forEach(el => {{
-      const cat = el.dataset.kpiCat;
-      if (catFinals[cat] != null) el.textContent = formatMoney(catFinals[cat]);
-    }});
-
-    // Staff totals — update staff cards
-    updateStaffView(catFinals);
-  }}
-
-  function formatMoney(n) {{
-    return n == null ? '—' : Math.round(n).toLocaleString();
-  }}
-
-  // ── Staff view recalc ─────────────────────────────────────────────────
-  function updateStaffView(catFinals) {{
-    // Per-staff totals: sum final values from category cards belonging to each staff
-    const staffTotals = {{}};
-    const staffCatTotals = {{}};
-
-    document.querySelectorAll('.record-card').forEach(card => {{
-      const staffId = card.dataset.staff;
-      const cat = card.dataset.category;
-      const auto = Number(card.dataset.auto || 0);
-      const finalInput = card.querySelector('input[data-field="final"]');
-      const finalVal = finalInput
-        ? (finalInput.value === '' ? auto : Number(finalInput.value))
-        : auto;
-
-      // We add per-card final only; category bonus is split evenly in view
-      staffTotals[staffId] = (staffTotals[staffId] || 0) + finalVal;
-      staffCatTotals[staffId] = staffCatTotals[staffId] || {{}};
-      staffCatTotals[staffId][cat] = (staffCatTotals[staffId][cat] || 0) + finalVal;
-    }});
-
-    // Add proportional share of category bonus to each staff member
-    document.querySelectorAll('.cat-section').forEach(section => {{
-      const cat = section.dataset.section;
-      const catBonus = Number(section.querySelector('[data-cat-bonus]')?.value || 0);
-      if (!catBonus) return;
-      // Count staff with records in this category
-      const staffInCat = new Set();
-      section.querySelectorAll('.record-card').forEach(c => staffInCat.add(c.dataset.staff));
-      const share = Math.round(catBonus / (staffInCat.size || 1));
-      staffInCat.forEach(sid => {{
-        staffTotals[sid] = (staffTotals[sid] || 0) + share;
-      }});
-    }});
-
-    // Update DOM in staff view
-    document.querySelectorAll('[data-staff-total]').forEach(el => {{
-      const sid = el.dataset.staffTotal;
-      if (staffTotals[sid] != null) el.textContent = formatMoney(staffTotals[sid]);
-    }});
-    document.querySelectorAll('[data-staff-cat]').forEach(el => {{
-      const [sid, cat] = el.dataset.staffCat.split(':');
-      if (staffCatTotals[sid] && staffCatTotals[sid][cat] != null)
-        el.textContent = formatMoney(staffCatTotals[sid][cat]);
-    }});
-  }}
-
-  // ── Input events ──────────────────────────────────────────────────────
-  document.addEventListener('input', e => {{
-    const input = e.target;
-    if (input.dataset.field) {{
-      const ov = loadOverrides();
-      ov[input.dataset.key] = ov[input.dataset.key] || {{}};
-      ov[input.dataset.key][input.dataset.field] = input.value === '' ? null : Number(input.value);
-      saveOverrides(ov);
-    }}
-    recalcAll();
-  }});
-
-  // ── Filter / view ─────────────────────────────────────────────────────
   const categoryView = document.getElementById('categoryView');
   const staffView = document.getElementById('staffView');
+  const kpiRow = document.getElementById('kpiRow');
+  const searchInput = document.getElementById('searchInput');
+  const exportBtn = document.getElementById('exportBtn');
+  const viewButtons = document.querySelectorAll('.view-btn');
+
   let currentView = 'category';
   let activeFilter = 'all';
 
   function applyFilter() {{
-    const query = document.getElementById('searchInput').value.trim().toLowerCase();
+    const query = searchInput.value.trim().toLowerCase();
+
     if (currentView === 'category') {{
       document.querySelectorAll('.cat-section').forEach(section => {{
         const cat = section.dataset.section;
         const show = activeFilter === 'all' || cat === activeFilter;
         section.classList.toggle('visible', show);
         if (!show) return;
+
         let anyVisible = false;
         section.querySelectorAll('.record-card').forEach(card => {{
           const ok = !query || (card.dataset.search || '').includes(query);
           card.style.display = ok ? '' : 'none';
           if (ok) anyVisible = true;
         }});
-        section.querySelector('.empty-state') &&
-          (section.querySelector('.empty-state').style.display = anyVisible ? 'none' : '');
+
+        const empty = section.querySelector('.empty-state');
+        if (empty) empty.style.display = anyVisible ? 'none' : '';
       }});
     }} else {{
       document.querySelectorAll('.staff-card').forEach(card => {{
@@ -1800,38 +1610,42 @@ body::before {{
     }}
   }}
 
-  // KPI filters
-  document.getElementById('kpiRow').addEventListener('click', e => {{
+  function setView(view) {{
+    currentView = view;
+    viewButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.view === view));
+    if (view === 'category') {{
+      categoryView.style.display = '';
+      staffView.classList.remove('visible');
+    }} else {{
+      categoryView.style.display = 'none';
+      staffView.classList.add('visible');
+    }}
+    applyFilter();
+  }}
+
+  kpiRow.addEventListener('click', e => {{
     const pill = e.target.closest('.kpi-pill');
     if (!pill) return;
-    document.querySelectorAll('.kpi-pill').forEach(p => p.classList.remove('active'));
+    kpiRow.querySelectorAll('.kpi-pill').forEach(p => p.classList.remove('active'));
     pill.classList.add('active');
     activeFilter = pill.dataset.filter || 'all';
-    applyFilter();
+    setView('category');
   }});
 
-  document.getElementById('searchInput').addEventListener('input', applyFilter);
+  searchInput.addEventListener('input', applyFilter);
 
-  // View toggle
-  document.querySelectorAll('.view-btn').forEach(btn => {{
-    btn.addEventListener('click', () => {{
-      document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentView = btn.dataset.view;
-      if (currentView === 'category') {{
-        categoryView.style.display = '';
-        staffView.classList.remove('visible');
-      }} else {{
-        categoryView.style.display = 'none';
-        staffView.classList.add('visible');
-      }}
-      applyFilter();
-    }});
+  viewButtons.forEach(btn => {{
+    btn.addEventListener('click', () => setView(btn.dataset.view));
   }});
 
-  // ── Lightbox ──────────────────────────────────────────────────────────
   const lightbox = document.getElementById('lightbox');
   const lightboxImg = document.getElementById('lightboxImg');
+  const closeLightbox = () => {{
+    lightbox.classList.remove('open');
+    lightbox.setAttribute('aria-hidden', 'true');
+    lightboxImg.src = '';
+  }};
+
   document.addEventListener('click', e => {{
     const shot = e.target.closest('.shot');
     if (!shot) return;
@@ -1841,53 +1655,168 @@ body::before {{
     lightbox.classList.add('open');
     lightbox.setAttribute('aria-hidden', 'false');
   }});
-  function closeLightbox() {{
-    lightbox.classList.remove('open');
-    lightbox.setAttribute('aria-hidden', 'true');
-    lightboxImg.src = '';
-  }}
-  lightbox.addEventListener('click', e => {{ if (e.target === lightbox) closeLightbox(); }});
+
+  lightbox.addEventListener('click', e => {{
+    if (e.target === lightbox) closeLightbox();
+  }});
   document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
-  document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeLightbox(); }});
-
-  // ── PDF export ────────────────────────────────────────────────────────
-  document.getElementById('exportBtn').addEventListener('click', async () => {{
-    const btn = document.getElementById('exportBtn');
-    btn.textContent = 'Generating…';
-    btn.disabled = true;
-
-    // Temporarily show all sections for PDF
-    const sections = document.querySelectorAll('.cat-section');
-    sections.forEach(s => s.classList.add('visible'));
-
-    const opt = {{
-      margin: [10, 10, 10, 10],
-      filename: 'payment-ledger-{esc(bundle.month_label).replace(" ", "-")}.pdf',
-      image: {{ type: 'jpeg', quality: 0.92 }},
-      html2canvas: {{ scale: 2, useCORS: true, logging: false }},
-      jsPDF: {{ unit: 'mm', format: 'a4', orientation: 'portrait' }},
-      pagebreak: {{ mode: ['avoid-all', 'css', 'legacy'] }},
-    }};
-
-    try {{
-      await html2pdf().set(opt).from(document.querySelector('.wrap')).save();
-    }} catch (err) {{
-      alert('PDF export failed. Try printing with Ctrl+P instead.');
-    }}
-
-    // Restore filter state
-    applyFilter();
-    btn.innerHTML = '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 16V4m0 12-4-4m4 4 4-4M4 20h16"/></svg> Export PDF';
-    btn.disabled = false;
+  document.addEventListener('keydown', e => {{
+    if (e.key === 'Escape') closeLightbox();
   }});
 
-  // ── Init ──────────────────────────────────────────────────────────────
-  applyOverrides();
-  applyFilter();
+  function copyHeadStylesInto(targetRoot) {{
+    // Copy all <style> tags from <head> so the cloned PDF root keeps the same layout rules.
+    document.head.querySelectorAll('style').forEach(node => {{
+      targetRoot.appendChild(node.cloneNode(true));
+    }});
+  }}
 
-  // Show all categories by default
+  async function exportPdf() {{
+    const btn = exportBtn;
+    const label = btn.innerHTML;
+    btn.disabled = true;
+    btn.textContent = 'Generating…';
+
+    const exportRoot = document.createElement('div');
+    exportRoot.id = 'pdfExportRoot';
+    exportRoot.style.position = 'fixed';
+    exportRoot.style.left = '-10000px';
+    exportRoot.style.top = '0';
+    exportRoot.style.width = '1280px';
+    exportRoot.style.background = '#ffffff';
+    exportRoot.style.color = '#111111';
+
+    // Critical: bring the page's head styles into the PDF clone.
+    copyHeadStylesInto(exportRoot);
+
+    const pdfStyle = document.createElement('style');
+    pdfStyle.textContent = `
+      #pdfExportRoot, #pdfExportRoot * {{
+        animation: none !important;
+        transition: none !important;
+      }}
+
+      #pdfExportRoot .wrap {{
+        max-width: 1280px !important;
+      }}
+
+      #pdfExportRoot .toolbar,
+      #pdfExportRoot .site-footer,
+      #pdfExportRoot .lightbox,
+      #pdfExportRoot .view-toggle,
+      #pdfExportRoot .search-wrap,
+      #pdfExportRoot .export-btn {{
+        display: none !important;
+      }}
+
+      #pdfExportRoot #staffView {{
+        display: none !important;
+      }}
+
+      #pdfExportRoot #categoryView {{
+        display: block !important;
+      }}
+
+      #pdfExportRoot .cat-section,
+      #pdfExportRoot .cat-section.visible {{
+        display: block !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }}
+
+      #pdfExportRoot .records-grid {{
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      }}
+
+      #pdfExportRoot .record-card,
+      #pdfExportRoot .fields-block,
+      #pdfExportRoot .field-row,
+      #pdfExportRoot .finance-block,
+      #pdfExportRoot .fin-col,
+      #pdfExportRoot .totals-bar,
+      #pdfExportRoot .kpi-pill {{
+        border-color: #d7d7d7 !important;
+        background: #ffffff !important;
+        color: #111111 !important;
+      }}
+
+      #pdfExportRoot .hero-title,
+      #pdfExportRoot .hero-month,
+      #pdfExportRoot .tc-value,
+      #pdfExportRoot .kp-amt,
+      #pdfExportRoot .cat-final-pill,
+      #pdfExportRoot .sc-total {{
+        color: #111111 !important;
+        -webkit-text-fill-color: #111111 !important;
+      }}
+    `;
+    exportRoot.appendChild(pdfStyle);
+
+    const source = document.querySelector('.wrap');
+    const clone = source.cloneNode(true);
+
+    clone.querySelector('.toolbar')?.remove();
+    clone.querySelector('.site-footer')?.remove();
+    clone.querySelector('.lightbox')?.remove();
+    clone.querySelector('#staffView')?.remove();
+
+    const pdfCategoryView = clone.querySelector('#categoryView');
+    if (pdfCategoryView) pdfCategoryView.style.display = 'block';
+
+    clone.querySelectorAll('.cat-section').forEach(section => {{
+      section.classList.add('visible');
+      section.style.display = 'block';
+      section.style.pageBreakInside = 'avoid';
+      section.style.breakInside = 'avoid';
+    }});
+
+    clone.querySelectorAll('*').forEach(el => {{
+      el.style.animation = 'none';
+      el.style.transition = 'none';
+    }});
+
+    exportRoot.appendChild(clone);
+    document.body.appendChild(exportRoot);
+
+    try {{
+      if (document.fonts && document.fonts.ready) {{
+        await document.fonts.ready;
+      }}
+
+      const opt = {{
+        margin: [8, 8, 8, 8],
+        filename: '{esc(bundle.month_label).replace(" ", "-")}.pdf',
+        image: {{ type: 'jpeg', quality: 0.98 }},
+        html2canvas: {{
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          scrollY: 0,
+          windowWidth: 1280,
+        }},
+        jsPDF: {{ unit: 'mm', format: 'a4', orientation: 'portrait' }},
+        pagebreak: {{ mode: ['css', 'legacy'] }},
+      }};
+
+      await html2pdf().set(opt).from(exportRoot).save();
+    }} catch (err) {{
+      alert('PDF export failed. Try printing with Ctrl+P instead.');
+    }} finally {{
+      exportRoot.remove();
+      btn.innerHTML = label;
+      btn.disabled = false;
+    }}
+  }}
+
+  exportBtn.addEventListener('click', exportPdf);
+
   document.querySelectorAll('.cat-section').forEach(s => s.classList.add('visible'));
+  applyFilter();
 }})();
+
 </script>
 </body>
 </html>'''
