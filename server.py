@@ -5,7 +5,7 @@ import asyncio
 import threading
 import subprocess
 import psutil
-import fcntl                  # for atomic file locking
+import fcntl
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -21,8 +21,8 @@ load_dotenv()
 
 BOT_SCRIPT    = "main.py"
 PID_FILE      = "bot.pid"
-LOCK_FILE     = "bot.lock"          # prevents duplicate start races
-READY_FILE    = "bot.ready"         # written by main.py on_ready, deleted on close
+LOCK_FILE     = "bot.lock"
+READY_FILE    = "bot.ready"
 LOG_FILE      = "bot.log"
 VENV_PYTHON   = sys.executable
 
