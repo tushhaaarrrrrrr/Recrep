@@ -5,7 +5,6 @@ import asyncio
 import threading
 import subprocess
 import psutil
-import fcntl
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -18,6 +17,11 @@ from utils.logger import get_logger
 
 from dotenv import load_dotenv
 load_dotenv()
+
+try:
+    import fcntl
+except ImportError:
+    import winfcntl as fcntl
 
 BOT_SCRIPT    = "main.py"
 PID_FILE      = "bot.pid"
