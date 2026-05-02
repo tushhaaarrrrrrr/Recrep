@@ -2,6 +2,8 @@ import asyncio
 import discord
 import logging
 import sys
+import os
+import atexit
 from pathlib import Path
 from discord.ext import commands, tasks
 
@@ -27,6 +29,30 @@ from utils.views import ApprovalView
 setup_logging(debug=False)
 
 READY_FILE = Path("bot.ready")
+LOCK_FILE  = Path("bot.lock.pid")
+
+
+def ensure_single_instance():
+    """
+    Prevent multiple bot processes from running at the same time.
+    Uses a PID lock file (bot.lock.pid).
+    If a valid lock already exists, the process exits immediately.
+    """
+    if LOCK_FILE.exists():
+        try:
+            old_pid = int(LOCK_FILE.read_text().strip())
+            # Checks if the process exists
+            os.kill(old_pid, 0)
+        except (ValueError, ProcessLookupError, PermissionError):
+            # Stale lock file
+            LOCK_FILE.unlink(missing_ok=True)
+        else:
+            print(f"❌ Another bot instance is already running (PID {old_pid}). Exiting.")
+            sys.exit(1)
+
+    # Write our own PID and clean up on exit
+    LOCK_FILE.write_text(str(os.getpid()))
+    atexit.register(lambda: LOCK_FILE.unlink(missing_ok=True))
 
 
 class TownyBot(commands.Bot):
@@ -50,7 +76,7 @@ class TownyBot(commands.Bot):
             async with self.db_pool.acquire() as conn:
                 await conn.execute("SELECT 1")
         except Exception:
-            pass  # ignore - the pool handles reconnects naturally
+            pass
 
     async def setup_hook(self):
         """Initialize database pool, S3 client, and load all cogs."""
@@ -58,7 +84,7 @@ class TownyBot(commands.Bot):
         try:
             self.db_pool = await init_db_pool()
             self.s3_client = init_s3_client()
-            self.keep_db_alive.start()          # fix #4: keep DB connection warm
+            self.keep_db_alive.start()
         except Exception as e:
             self.logger.critical(f"Failed to initialize services: {e}")
             await self.close()
@@ -78,7 +104,6 @@ class TownyBot(commands.Bot):
         await self.add_cog(LookupCog(self))
 
         # Register persistent ApprovalView for handling button interactions after restart
-        # The view reconstructs its state from custom_id on interaction - bug #3 is handled there.
         persistent_view = ApprovalView(
             table='',
             form_id=0,
@@ -126,6 +151,10 @@ class TownyBot(commands.Bot):
 
 async def main():
     """Entry point: start the bot."""
+
+    # ── Ensure only one bot process runs ──
+    ensure_single_instance()
+
     bot = TownyBot()
     try:
         async with bot:

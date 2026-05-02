@@ -172,34 +172,33 @@ class AdminCog(commands.Cog):
         member: discord.Member = None,
         role: str = None
     ):
-        if action.value == "grant":
+        # ── grant / revoke ──
+        if action.value in ("grant", "revoke"):
             if not member or not role or role not in self._VALID_ROLES:
                 await interaction.response.send_message(
-                    f"❌ Usage: `/role grant @user` `role`\nValid roles: {', '.join(self._VALID_ROLES)}",
+                    f"❌ Usage: `/role {action.value} @user` `role`\nValid roles: {', '.join(self._VALID_ROLES)}",
                     ephemeral=True
                 )
                 return
-            await DBService.add_user_role(member.id, role, interaction.user.id)
-            await interaction.response.send_message(
-                f"✅ Granted `{role}` role to {member.mention}",
-                ephemeral=True
-            )
-            logger.info(f"{interaction.user.id} granted {role} to {member.id}")
 
-        elif action.value == "revoke":
-            if not member or not role or role not in self._VALID_ROLES:
-                await interaction.response.send_message(
-                    f"❌ Usage: `/role revoke @user` `role`\nValid roles: {', '.join(self._VALID_ROLES)}",
-                    ephemeral=True
-                )
-                return
-            await DBService.remove_user_role(member.id, role)
-            await interaction.response.send_message(
-                f"✅ Revoked `{role}` role from {member.mention}",
-                ephemeral=True
-            )
-            logger.info(f"{interaction.user.id} revoked {role} from {member.id}")
+            # Defer first, then do the DB work & send followup
+            await interaction.response.defer(ephemeral=True)
+            try:
+                if action.value == "grant":
+                    await DBService.add_user_role(member.id, role, interaction.user.id)
+                    msg = f"✅ Granted `{role}` role to {member.mention}"
+                    logger.info(f"{interaction.user.id} granted {role} to {member.id}")
+                else:  # revoke
+                    await DBService.remove_user_role(member.id, role)
+                    msg = f"✅ Revoked `{role}` role from {member.mention}"
+                    logger.info(f"{interaction.user.id} revoked {role} from {member.id}")
 
+                await interaction.followup.send(msg)
+            except Exception as e:
+                logger.exception(f"Failed to {action.value} role {role} for {member.id}")
+                await interaction.followup.send("❌ An internal error occurred. Check logs for details.")
+
+        # ── list ──
         elif action.value == "list":
             if member:
                 roles = await DBService.get_user_roles(member.id)
@@ -465,15 +464,15 @@ class AdminCog(commands.Cog):
             table = form['table']
             form_id = form['id']
             try:
-                # 1. Approve the form
+                # Approve the form
                 await DBService.approve_form(table, form_id, approver.id)
 
-                # 2. Fetch full form data (needed for points, notification, role)
+                # Fetch full form data
                 form_data = await DBService.get_full_form_data(table, form_id)
                 if not form_data:
                     raise ValueError("Form data not found after approval")
 
-                # 3. Award reputation
+                # Award reputation
                 points_override = None
                 if table == 'scroll_completion':
                     scroll_type = (form_data.get('scroll_type') or '').lower()
@@ -485,7 +484,7 @@ class AdminCog(commands.Cog):
 
                 await award_approval_points(approver.id, table, form_id)
 
-                # 4. Post-approval tasks: notification + role assignment
+                # Notification + role assignment
                 channel_config_key = self._FORM_CHANNEL_MAP.get(table)
                 if not channel_config_key:
                     raise ValueError(f"No channel config mapping for table {table}")
@@ -510,7 +509,7 @@ class AdminCog(commands.Cog):
                         form_data=form_data
                     )
 
-                # 5. Delete approval message from approval channel
+                # Delete approval message from approval channel
                 if form.get('approval_message_id') and approval_channel_id:
                     try:
                         channel = self.bot.get_channel(approval_channel_id)
@@ -521,7 +520,7 @@ class AdminCog(commands.Cog):
                     except (discord.NotFound, discord.Forbidden, discord.HTTPException):
                         pass
 
-                # 6. Delete submitter's confirmation message
+                # Delete submitter's confirmation message
                 if form.get('confirmation_msg_id') and form.get('confirmation_channel_id'):
                     try:
                         channel = self.bot.get_channel(form['confirmation_channel_id'])
@@ -532,7 +531,7 @@ class AdminCog(commands.Cog):
                     except (discord.NotFound, discord.Forbidden, discord.HTTPException):
                         pass
 
-                # 7. Delete resend confirmation message if present
+                # Delete resend confirmation message
                 if form.get('resend_confirmation_msg_id') and form.get('resend_confirmation_channel_id'):
                     try:
                         channel = self.bot.get_channel(form['resend_confirmation_channel_id'])
