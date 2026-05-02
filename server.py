@@ -338,6 +338,7 @@ async def async_get_staff_directory():
     rows = await DBService.fetch(
         "SELECT discord_id, display_name, reputation FROM staff_member ORDER BY reputation DESC"
     )
+
     staff_map = {}
     for row in rows:
         sid = str(row["discord_id"])
@@ -349,20 +350,21 @@ async def async_get_staff_directory():
             "purchase_invoice": 0, "demolition_report": 0, "eviction_report": 0,
             "scroll_completion": 0, "approvals": 0, "roles": [],
         }
+
     for table in FORM_TABLES:
         rows = await DBService.fetch(
             f"SELECT submitted_by, COUNT(*) as cnt FROM {table} WHERE status='approved' GROUP BY submitted_by"
         )
         for r in rows:
             sid = str(r["submitted_by"])
-            if sid not in staff_map:
-                staff_map[sid] = {
-                    "discord_id": sid, "label": f"User {sid}", "reputation": 0,
-                    "recruitment": 0, "progress_report": 0, "progress_help": 0,
-                    "purchase_invoice": 0, "demolition_report": 0, "eviction_report": 0,
-                    "scroll_completion": 0, "approvals": 0, "roles": [],
-                }
+            staff_map.setdefault(sid, {
+                "discord_id": sid, "label": f"User {sid}", "reputation": 0,
+                "recruitment": 0, "progress_report": 0, "progress_help": 0,
+                "purchase_invoice": 0, "demolition_report": 0, "eviction_report": 0,
+                "scroll_completion": 0, "approvals": 0, "roles": [],
+            })
             staff_map[sid][table] = r["cnt"]
+
     rows = await DBService.fetch(
         "SELECT staff_id, COUNT(*) as cnt FROM reputation_log WHERE form_type='progress_help' GROUP BY staff_id"
     )
@@ -370,6 +372,7 @@ async def async_get_staff_directory():
         sid = str(r["staff_id"])
         if sid in staff_map:
             staff_map[sid]["progress_help"] = r["cnt"]
+
     for table in FORM_TABLES:
         rows = await DBService.fetch(
             f"SELECT approved_by, COUNT(*) as cnt FROM {table} "
@@ -379,11 +382,14 @@ async def async_get_staff_directory():
             sid = str(r["approved_by"])
             if sid in staff_map:
                 staff_map[sid]["approvals"] += r["cnt"]
-    for sid, data in staff_map.items():
-        try:
-            data["roles"] = await DBService.get_user_roles(int(sid))
-        except Exception:
-            data["roles"] = []
+
+    sids = list(staff_map.keys())
+    role_tasks = [DBService.get_user_roles(int(sid)) for sid in sids]
+    role_results = await asyncio.gather(*role_tasks, return_exceptions=True)
+
+    for sid, roles in zip(sids, role_results):
+        staff_map[sid]["roles"] = roles if not isinstance(roles, Exception) else []
+
     return sorted(staff_map.values(), key=lambda x: x["reputation"], reverse=True)
 
 async def async_get_user_history(discord_id_str: str):
