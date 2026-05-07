@@ -25,7 +25,7 @@ ALLOWED_FIELDS = {
     'purchase_invoice': {
         'purchasee_nickname', 'purchasee_ingame', 'purchase_type',
         'amount_deposited', 'num_plots', 'total_plots', 'banner_color',
-        'shop_number', 'screenshot_urls',
+        'shop_number', 'house_number', 'screenshot_urls',
     },
     'demolition_report': {
         'ingame_username', 'removed', 'stashed_items', 'screenshot_urls',
@@ -187,14 +187,14 @@ class DBService:
             INSERT INTO purchase_invoice (
                 submitted_by, seller_display, purchasee_nickname, purchasee_ingame,
                 purchase_type, num_plots, total_plots, banner_color, shop_number,
-                amount_deposited, screenshot_urls
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                house_number, amount_deposited, screenshot_urls
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             RETURNING id
             """,
             data['submitted_by'], data['seller_display'], data['purchasee_nickname'],
             data['purchasee_ingame'], data['purchase_type'], data.get('num_plots'),
             data.get('total_plots'), data.get('banner_color'), data.get('shop_number'),
-            data.get('amount_deposited'), data['screenshot_urls']
+            data.get('house_number'), data.get('amount_deposited'), data['screenshot_urls']
         )
         return row['id']
 

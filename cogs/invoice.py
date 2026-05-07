@@ -9,7 +9,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 class InvoiceCog(commands.Cog):
-    """Commands for submitting purchase invoices (plots or mall shops)."""
+    """Commands for submitting purchase invoices (plots, mall shops, or spawn houses)."""
 
     _TABLE_PREFIX = {
         'purchase_invoice': 'inv'
@@ -20,17 +20,18 @@ class InvoiceCog(commands.Cog):
 
     @app_commands.command(
         name="invoice",
-        description="Submit a purchase invoice for plot sales or mall shop purchases"
+        description="Submit a purchase invoice for plot sales, mall shop purchases, or spawn houses"
     )
     @app_commands.describe(
         buyer_nickname="Discord nickname of the buyer",
         buyer_ingame="Minecraft username of the buyer",
-        purchase_type="Type of purchase: `premium`, `normal`, `staff`, or `mall_shop`",
+        purchase_type="Type of purchase: `premium`, `normal`, `staff`, `mall_shop`, or `spawn_house`",
         amount_deposited="Amount of coins deposited to the town bank",
         num_plots="Number of plots sold (for plot purchases)",
         total_plots="Buyer's total plots after this purchase",
         banner_color="Banner color of the mall shop (for mall shop purchases)",
         shop_number="Shop number in the mall (for mall shop purchases)",
+        house_number="House number (for spawn house purchases)",
         screenshot1="Screenshot evidence (at least one required)",
         screenshot2="Additional screenshot (optional)",
         screenshot3="Additional screenshot (optional)",
@@ -52,7 +53,8 @@ class InvoiceCog(commands.Cog):
         num_plots: int = None,
         total_plots: int = None,
         banner_color: str = None,
-        shop_number: int = None
+        shop_number: int = None,
+        house_number: int = None
     ):
         try:
             await interaction.response.defer()
@@ -85,6 +87,7 @@ class InvoiceCog(commands.Cog):
                 'total_plots': total_plots,
                 'banner_color': banner_color,
                 'shop_number': shop_number,
+                'house_number': house_number,
                 'amount_deposited': amount_deposited,
                 'screenshot_urls': ','.join(screenshot_urls)
             }
@@ -102,6 +105,7 @@ class InvoiceCog(commands.Cog):
                 'total_plots': total_plots,
                 'banner_color': banner_color,
                 'shop_number': shop_number,
+                'house_number': house_number,
                 'screenshot_urls': data['screenshot_urls']
             }
 
@@ -136,6 +140,13 @@ class InvoiceCog(commands.Cog):
                             value=f"Color: {banner_color} · #{shop_number}",
                             inline=True
                         )
+                    if purchase_type == "spawn_house" and house_number:
+                        embed.add_field(
+                            name="Spawn House",
+                            value=f"House #{house_number}",
+                            inline=True
+                        )
+
                     if screenshot_urls:
                         embed.set_image(url=screenshot_urls[0])
                         if len(screenshot_urls) > 1:

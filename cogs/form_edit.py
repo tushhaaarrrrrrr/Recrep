@@ -50,7 +50,8 @@ class FormEditCog(commands.Cog):
             'num_plots': 'Number of Plots',
             'total_plots': 'Total Plots',
             'banner_color': 'Banner Color',
-            'shop_number': 'Shop Number'
+            'shop_number': 'Shop Number',
+            'house_number': 'House Number'
         },
         'demolition_report': {
             'ingame_username': 'Player',
@@ -146,7 +147,7 @@ class FormEditCog(commands.Cog):
                 await interaction.followup.send("❌ Value must be `yes` or `no`.", ephemeral=True)
                 return
             value = value.lower() == 'yes'
-        elif field in ('plots', 'num_plots', 'total_plots', 'shop_number'):
+        elif field in ('plots', 'num_plots', 'total_plots', 'shop_number', 'house_number'):
             try:
                 value = int(value)
             except ValueError:
@@ -250,6 +251,8 @@ class FormEditCog(commands.Cog):
                 embed.add_field(name="Plots", value=f"{form_data['num_plots']} (total: {form_data['total_plots']})", inline=True)
             if form_data.get('banner_color'):
                 embed.add_field(name="Mall Shop", value=f"Color {form_data['banner_color']}, #{form_data['shop_number']}", inline=True)
+            if form_data.get('purchase_type') == 'spawn_house' and form_data.get('house_number'):
+                embed.add_field(name="Spawn House", value=f"House #{form_data['house_number']}", inline=True)
         elif table == 'demolition_report':
             embed.add_field(name="Submitter", value=f"<@{form_data['submitted_by']}>", inline=True)
             embed.add_field(name="Player", value=form_data['ingame_username'], inline=True)

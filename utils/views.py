@@ -101,6 +101,7 @@ async def send_approval_notification(bot, guild, table, form_id, form_data,
         total_plots = form_data.get('total_plots')
         banner_color = form_data.get('banner_color')
         shop_number = form_data.get('shop_number')
+        house_number = form_data.get('house_number')
         seller_display = form_data.get('seller_display', submitter_name)
         embed.add_field(name="Seller", value=seller_display, inline=True)
         embed.add_field(name="Buyer", value=f"{buyer_nick} ({buyer_ign})", inline=True)
@@ -110,6 +111,8 @@ async def send_approval_notification(bot, guild, table, form_id, form_data,
             embed.add_field(name="Plots", value=f"{num_plots} (total: {total_plots})", inline=True)
         if banner_color:
             embed.add_field(name="Mall Shop", value=f"Color {banner_color} · #{shop_number}", inline=True)
+        if purchase_type == "spawn_house" and house_number:
+            embed.add_field(name="Spawn House", value=f"House #{house_number}", inline=True)
         if first_url:
             embed.set_image(url=first_url)
             if extra_count > 0:
@@ -402,7 +405,7 @@ class ApprovalView(discord.ui.View):
             'progress_report': ['submitted_by', 'project_name', 'time_spent', 'helper_mentions', 'screenshot_urls', 'status'],
             'purchase_invoice': ['submitted_by', 'seller_display', 'purchasee_nickname', 'purchasee_ingame',
                                  'purchase_type', 'num_plots', 'total_plots', 'banner_color', 'shop_number',
-                                 'amount_deposited', 'screenshot_urls', 'status'],
+                                 'house_number', 'amount_deposited', 'screenshot_urls', 'status'],
             'demolition_report': ['submitted_by', 'ingame_username', 'removed', 'stashed_items', 'screenshot_urls', 'status'],
             'demolition_request': ['submitted_by', 'ingame_username', 'reason', 'screenshot_urls', 'status'],
             'eviction_report': ['submitted_by', 'ingame_owner', 'items_stored', 'inactivity_period', 'screenshot_urls', 'status'],
@@ -445,8 +448,12 @@ class ApprovalView(discord.ui.View):
             return (f"Project '{self.form_data.get('project_name', '?')}' - "
                     f"{self.form_data.get('time_spent', '?')}")
         if self.table == 'purchase_invoice':
-            return (f"Sale to {self.form_data.get('purchasee_nickname', '?')} for "
+            purchase_type = self.form_data.get('purchase_type', '?')
+            base = (f"Sale to {self.form_data.get('purchasee_nickname', '?')} for "
                     f"{self.form_data.get('amount_deposited', 0)} coins")
+            if purchase_type == 'spawn_house' and self.form_data.get('house_number'):
+                base += f" (Spawn House #{self.form_data['house_number']})"
+            return base
         if self.table == 'demolition_report':
             return (f"Demolished {self.form_data.get('ingame_username', '?')} - "
                     f"{self.form_data.get('removed', '?')}")
